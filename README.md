@@ -35,41 +35,17 @@ if [[ -f ~/.bashrc ]]; then
 fi
 ```
 
-### 2. Load bash-completion
+### 2. Use the repository's `.bashrc`
 
-Some packages load bash-completion for you; the guards below avoid loading it twice. Add
-the block for your system near the top of `~/.bashrc`.
+`.bashrc` loads bash-completion (from the system or Homebrew), then bash-sensible, then
+`.bash_aliases`. It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin` and
+`~/.local/bin` to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN when they are
+installed.
 
-Linux:
+Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
+prints a version.
 
-```bash
-# Use bash-completion, if available, and avoid double-sourcing
-[[ $PS1 &&
-  ! ${BASH_COMPLETION_VERSINFO:-} &&
-  -f /usr/share/bash-completion/bash_completion ]] &&
-    . /usr/share/bash-completion/bash_completion
-```
+### 3. Keep private settings local
 
-macOS (Homebrew):
-
-```bash
-if [[ -s $HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh ]]; then
-  . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
-fi
-```
-
-Open a new shell and check it loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"` prints a
-version.
-
-### 3. Load bash-sensible
-
-Source it after bash-completion, still near the top of `~/.bashrc`:
-
-```bash
-if [[ -f ~/.config/bash/sensible/sensible.bash ]]; then
-  source ~/.config/bash/sensible/sensible.bash
-fi
-```
-
-Keep it near the top: it replaces `PROMPT_COMMAND`, so tools that add to `PROMPT_COMMAND`
-must be set up after it.
+Put secrets, work-specific aliases and anything else machine-specific in `~/.bashrc.local`.
+`.bashrc` sources it last, and git ignores it.
