@@ -14,8 +14,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/shellmoi/main
 The script needs `git`; if it is missing, the script prints the command to install it. It:
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
-- links every tracked file into `~`, except this README, `AGENTS.md`, `CLAUDE.md`,
-  `.gitignore` and `install.sh`
+- links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
+  `CLAUDE.md`, `.gitignore` and `install.sh`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
