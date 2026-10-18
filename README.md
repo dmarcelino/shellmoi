@@ -5,6 +5,36 @@ Configuration for a bash shell: opinionated defaults, used across different mach
 The repository root mirrors the home directory: a file at `.config/foo` here belongs at
 `~/.config/foo`.
 
+## Install
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/my-shell/main/install.sh)"
+```
+
+The script needs `git`; if it is missing, the script prints the command to install it. It:
+
+- clones this repository into `~/.local/share/my-shell`, or pulls it if it is already there
+- links every tracked file into `~`, except this README, `AGENTS.md`, `CLAUDE.md`,
+  `.gitignore` and `install.sh`
+- moves a file already at a link's place, such as the system's default `~/.bashrc`, to
+  `<file>.bak.<timestamp>`
+- copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
+  only if they do not exist yet, because Claude Code and Codex write to these files
+- prints the command to install bash-completion if it is missing (see below); it never
+  runs `sudo`
+
+Run the same command again, or `~/.local/share/my-shell/install.sh`, to update. Files
+that are already linked are left alone.
+
+Set `MY_SHELL_DIR` to use another clone location, for example an existing working copy,
+and `MY_SHELL_REPO` to clone from a fork.
+
+The clone uses HTTPS, which needs no SSH key. To push from it, switch to SSH:
+
+```bash
+git -C ~/.local/share/my-shell remote set-url origin git@github.com:dmarcelino/my-shell.git
+```
+
 ## Bash
 
 [bash-sensible](https://github.com/mrzool/bash-sensible) provides saner Bash defaults:
@@ -35,12 +65,12 @@ if [[ -f ~/.bashrc ]]; then
 fi
 ```
 
-### 2. Use the repository's `.bashrc`
+### 2. The repository's `.bashrc`
 
-`.bashrc` loads bash-completion (from the system or Homebrew), then bash-sensible, then
-`.bash_aliases`. It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin` and
-`~/.local/bin` to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN when they are
-installed.
+The install script links `~/.bashrc` to this repository's `.bashrc`, which loads
+bash-completion (from the system or Homebrew), then bash-sensible, then `.bash_aliases`.
+It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin` and `~/.local/bin`
+to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN when they are installed.
 
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
 prints a version.

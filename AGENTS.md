@@ -15,7 +15,8 @@ Never commit private, sensitive or secret information. Off limits, among others:
 - Hostnames, IP addresses, internal URLs and other details of private networks or machines
 - Names of employers, clients or internal systems
 
-Author and license credits in vendored third-party code are fine; keep them.
+Author and license credits in vendored third-party code are fine; keep them. So is this
+repository's own public URL, which `install.sh` and the README need.
 
 Keep machine-specific or private values out of tracked files: read them from environment
 variables or from a local, untracked file that the tracked config sources if present.
