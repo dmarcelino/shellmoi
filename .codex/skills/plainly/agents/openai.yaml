@@ -1,0 +1,7 @@
+interface:
+  display_name: "Plainly"
+  short_description: "Simple, jargon-free explanation with context"
+  default_prompt: "Use $plainly to explain this in simple words, without jargon, in ASD-STE100 Simplified Technical English."
+
+policy:
+  allow_implicit_invocation: false

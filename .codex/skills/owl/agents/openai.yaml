@@ -1,0 +1,7 @@
+interface:
+  display_name: "Owl"
+  short_description: "Slow, multi-perspective analysis of a case"
+  default_prompt: "Use $owl to analyse this from multiple perspectives and get to the heart of the matter."
+
+policy:
+  allow_implicit_invocation: false

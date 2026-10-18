@@ -1,0 +1,7 @@
+interface:
+  display_name: "Ask"
+  short_description: "Direct repo-aware engineering answers"
+  default_prompt: "Use $ask to answer a repository or engineering question directly."
+
+policy:
+  allow_implicit_invocation: false

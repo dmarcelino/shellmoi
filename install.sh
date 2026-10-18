@@ -70,15 +70,17 @@ copy_once() {
 }
 
 # Links the target to the source, moving anything else at that path to a backup
+# (by default next to the target; pass a home-relative backup path to put it elsewhere)
 link() {
-    local src=$1 target=$2 file=$3
+    local src=$1 target=$2 file=$3 backup=${4:-$3$BACKUP_SUFFIX}
     if [ -L "$target" ] && [ "$(readlink "$target")" = "$src" ]; then
         echo "  up to date     ~/$file"
         return
     fi
     if [ -e "$target" ] || [ -L "$target" ]; then
-        mv "$target" "$target$BACKUP_SUFFIX"
-        echo "  backed up      ~/$file -> ~/$file$BACKUP_SUFFIX"
+        mkdir -p "$(dirname "$HOME/$backup")"
+        mv "$target" "$HOME/$backup"
+        echo "  backed up      ~/$file -> ~/$backup"
     fi
     ln -s "$src" "$target"
     echo "  linked         ~/$file"
@@ -90,6 +92,7 @@ deploy() {
     while IFS= read -r -d '' file; do
         case "$file" in
             README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh) continue ;;
+            .claude/skills|.codex/skills/*) continue ;;  # see deploy_skills
         esac
         target="$HOME/$file"
         mkdir -p "$(dirname "$target")"
@@ -100,6 +103,23 @@ deploy() {
                 link "$SHELLMOI_DIR/$file" "$target" "$file" ;;
         esac
     done < <(git -C "$SHELLMOI_DIR" ls-files -z)
+}
+
+# Links each skill directory on its own, so other skills in ~/.claude/skills and
+# ~/.codex/skills stay. Backups go outside the skills folders: a backup inside them still
+# holds a SKILL.md and would load as a second copy of the skill.
+deploy_skills() {
+    local dir name tool file
+    for dir in "$SHELLMOI_DIR"/.codex/skills/*/; do
+        [ -d "$dir" ] || continue
+        name=$(basename "$dir")
+        for tool in .codex .claude; do
+            file="$tool/skills/$name"
+            mkdir -p "$HOME/$tool/skills"
+            link "$SHELLMOI_DIR/$file" "$HOME/$file" "$file" \
+                "$tool/skills$BACKUP_SUFFIX/$name"
+        done
+    done
 }
 
 # Without ~/.gitconfig, `git config --global` writes to ~/.config/git/config, which is a
@@ -140,6 +160,7 @@ main() {
     require_git
     clone_or_update
     deploy
+    deploy_skills
     ensure_local_gitconfig
     check_bash_completion
     check_diff_so_fancy

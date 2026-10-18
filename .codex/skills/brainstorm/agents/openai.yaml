@@ -1,0 +1,7 @@
+interface:
+  display_name: "Brainstorm"
+  short_description: "Multi-turn thinking partner for ideation"
+  default_prompt: "Brainstorm a problem or idea collaboratively: frame it, generate options, challenge them, refine."
+
+policy:
+  allow_implicit_invocation: false

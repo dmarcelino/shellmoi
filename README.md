@@ -20,6 +20,8 @@ The script needs `git`; if it is missing, the script prints the command to insta
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
   only if they do not exist yet, because Claude Code and Codex write to these files
+- links each skill directory on its own (see [Skills](#skills)), so other skills already
+  in `~/.claude/skills` and `~/.codex/skills` stay
 - prints the command to install bash-completion if it is missing (see below); it never
   runs `sudo`
 
@@ -97,3 +99,20 @@ Keep `user.name`, `user.email` and credential helpers in `~/.gitconfig`, which i
 tracked. Git reads it after `.config/git/config`, and `git config --global` writes to it.
 The install script creates an empty one if it is missing: without it,
 `git config --global` would write to `.config/git/config` in this repository.
+
+## Skills
+
+Skills for Claude Code and Codex, which read the same format. The repository keeps one
+copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked explicitly:
+`/<name>` in Claude Code, `$<name>` in Codex.
+
+| Skill        | What it does                                                        |
+| ------------ | ------------------------------------------------------------------- |
+| `ask`        | Answers a question from the codebase and the web; changes nothing   |
+| `brainstorm` | A multi-turn thinking partner: frame, explore, generate, challenge  |
+| `plainly`    | Explains something, or the previous answer, in simple words         |
+| `owl`        | Slow, multi-perspective analysis of a problem, question or decision |
+
+The install script links `~/.claude/skills/<name>` and `~/.codex/skills/<name>` to each
+skill. A skill already at that place is moved to `~/.claude/skills.bak.<timestamp>/` or
+`~/.codex/skills.bak.<timestamp>/`, outside the skills folder, so it does not load twice.
