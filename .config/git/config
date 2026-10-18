@@ -1,0 +1,13 @@
+# Shared git settings. Keep user.name, user.email and credential helpers in ~/.gitconfig,
+# which git reads after this file and which `git config --global` writes to.
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[push]
+	autoSetupRemote = true
+[core]
+	# diff-so-fancy when installed, plain less otherwise
+	pager = "if command -v diff-so-fancy >/dev/null; then diff-so-fancy; else cat; fi | less --tabs=4 -RFX"

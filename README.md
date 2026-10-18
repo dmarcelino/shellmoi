@@ -79,3 +79,21 @@ prints a version.
 
 Put secrets, work-specific aliases and anything else machine-specific in `~/.bashrc.local`.
 `.bashrc` sources it last, and git ignores it.
+
+### 4. History search with the arrow keys
+
+Type the start of a command, then press Up or Down to step through the history entries
+that start with it. bash-sensible sets this for Bash, and `.inputrc` sets it for every
+other program that uses Readline, such as `python` and `psql`.
+
+## Git
+
+`.config/git/config` holds the shared settings: Git LFS, `push.autoSetupRemote`, and
+[diff-so-fancy](https://github.com/so-fancy/diff-so-fancy) as the pager when it is
+installed. `.config/git/ignore` is the global ignore file, and
+`.config/lazygit/config.yml` makes lazygit show diffs with diff-so-fancy too.
+
+Keep `user.name`, `user.email` and credential helpers in `~/.gitconfig`, which is not
+tracked. Git reads it after `.config/git/config`, and `git config --global` writes to it.
+The install script creates an empty one if it is missing: without it,
+`git config --global` would write to `.config/git/config` in this repository.

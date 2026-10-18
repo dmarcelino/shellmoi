@@ -102,6 +102,24 @@ deploy() {
     done < <(git -C "$SHELLMOI_DIR" ls-files -z)
 }
 
+# Without ~/.gitconfig, `git config --global` writes to ~/.config/git/config, which is a
+# link into this repository: private values like user.email would end up in it
+ensure_local_gitconfig() {
+    if [ ! -e "$HOME/.gitconfig" ]; then
+        echo "# Machine-specific git settings: user.name, user.email, credential helpers" \
+            > "$HOME/.gitconfig"
+        echo "  created        ~/.gitconfig (set user.name and user.email with git config --global)"
+    fi
+}
+
+check_diff_so_fancy() {
+    if ! command -v diff-so-fancy >/dev/null 2>&1; then
+        echo
+        echo "diff-so-fancy is not installed: git diffs will be plain, and lazygit expects it. See"
+        echo "    https://github.com/so-fancy/diff-so-fancy#install"
+    fi
+}
+
 check_bash_completion() {
     if [ -f /usr/share/bash-completion/bash_completion ]; then
         return
@@ -122,7 +140,9 @@ main() {
     require_git
     clone_or_update
     deploy
+    ensure_local_gitconfig
     check_bash_completion
+    check_diff_so_fancy
     echo
     echo "Done. Open a new shell to load the configuration."
     echo "To push changes, switch the clone to SSH:"
