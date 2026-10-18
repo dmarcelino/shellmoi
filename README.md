@@ -1,4 +1,4 @@
-# my-shell
+# shellmoi
 
 Configuration for a bash shell: opinionated defaults, used across different machines.
 
@@ -8,12 +8,12 @@ The repository root mirrors the home directory: a file at `.config/foo` here bel
 ## Install
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/my-shell/main/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/shellmoi/main/install.sh)"
 ```
 
 The script needs `git`; if it is missing, the script prints the command to install it. It:
 
-- clones this repository into `~/.local/share/my-shell`, or pulls it if it is already there
+- clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `AGENTS.md`, `CLAUDE.md`,
   `.gitignore` and `install.sh`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
@@ -23,16 +23,16 @@ The script needs `git`; if it is missing, the script prints the command to insta
 - prints the command to install bash-completion if it is missing (see below); it never
   runs `sudo`
 
-Run the same command again, or `~/.local/share/my-shell/install.sh`, to update. Files
+Run the same command again, or `~/.local/share/shellmoi/install.sh`, to update. Files
 that are already linked are left alone.
 
-Set `MY_SHELL_DIR` to use another clone location, for example an existing working copy,
-and `MY_SHELL_REPO` to clone from a fork.
+Set `SHELLMOI_DIR` to use another clone location, for example an existing working copy,
+and `SHELLMOI_REPO` to clone from a fork.
 
 The clone uses HTTPS, which needs no SSH key. To push from it, switch to SSH:
 
 ```bash
-git -C ~/.local/share/my-shell remote set-url origin git@github.com:dmarcelino/my-shell.git
+git -C ~/.local/share/shellmoi remote set-url origin git@github.com:dmarcelino/shellmoi.git
 ```
 
 ## Bash

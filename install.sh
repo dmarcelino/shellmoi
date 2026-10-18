@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Install or update my-shell: clone the repository, then link its files into $HOME.
+# Install or update shellmoi: clone the repository, then link its files into $HOME.
 #
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/my-shell/main/install.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/dmarcelino/shellmoi/main/install.sh)"
 #
 # Safe to run again: it pulls the latest changes and only touches what changed.
 # Must run under Bash 3.2 (the macOS default), so no mapfile or associative arrays.
 
 set -euo pipefail
 
-MY_SHELL_REPO="${MY_SHELL_REPO:-https://github.com/dmarcelino/my-shell.git}"
-MY_SHELL_DIR="${MY_SHELL_DIR:-$HOME/.local/share/my-shell}"
+SHELLMOI_REPO="${SHELLMOI_REPO:-https://github.com/dmarcelino/shellmoi.git}"
+SHELLMOI_DIR="${SHELLMOI_DIR:-$HOME/.local/share/shellmoi}"
 BACKUP_SUFFIX=".bak.$(date +%Y%m%d-%H%M%S)"
 
 # Prints the command that installs a package on this system
@@ -41,20 +41,20 @@ require_git() {
 }
 
 clone_or_update() {
-    if [ -d "$MY_SHELL_DIR/.git" ]; then
-        if git -C "$MY_SHELL_DIR" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
-            echo "Updating $MY_SHELL_DIR"
-            git -C "$MY_SHELL_DIR" pull --ff-only --quiet
+    if [ -d "$SHELLMOI_DIR/.git" ]; then
+        if git -C "$SHELLMOI_DIR" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+            echo "Updating $SHELLMOI_DIR"
+            git -C "$SHELLMOI_DIR" pull --ff-only --quiet
         else
-            echo "Using $MY_SHELL_DIR as is (its branch has no upstream to pull from)"
+            echo "Using $SHELLMOI_DIR as is (its branch has no upstream to pull from)"
         fi
-    elif [ -e "$MY_SHELL_DIR" ]; then
-        echo "$MY_SHELL_DIR exists but is not a git repository; move it away or set MY_SHELL_DIR." >&2
+    elif [ -e "$SHELLMOI_DIR" ]; then
+        echo "$SHELLMOI_DIR exists but is not a git repository; move it away or set SHELLMOI_DIR." >&2
         exit 1
     else
-        echo "Cloning $MY_SHELL_REPO into $MY_SHELL_DIR"
-        mkdir -p "$(dirname "$MY_SHELL_DIR")"
-        git clone --quiet "$MY_SHELL_REPO" "$MY_SHELL_DIR"
+        echo "Cloning $SHELLMOI_REPO into $SHELLMOI_DIR"
+        mkdir -p "$(dirname "$SHELLMOI_DIR")"
+        git clone --quiet "$SHELLMOI_REPO" "$SHELLMOI_DIR"
     fi
 }
 
@@ -95,11 +95,11 @@ deploy() {
         mkdir -p "$(dirname "$target")"
         case "$file" in
             .claude/settings.json|.codex/config.toml)
-                copy_once "$MY_SHELL_DIR/$file" "$target" "$file" ;;
+                copy_once "$SHELLMOI_DIR/$file" "$target" "$file" ;;
             *)
-                link "$MY_SHELL_DIR/$file" "$target" "$file" ;;
+                link "$SHELLMOI_DIR/$file" "$target" "$file" ;;
         esac
-    done < <(git -C "$MY_SHELL_DIR" ls-files -z)
+    done < <(git -C "$SHELLMOI_DIR" ls-files -z)
 }
 
 check_bash_completion() {
@@ -126,7 +126,7 @@ main() {
     echo
     echo "Done. Open a new shell to load the configuration."
     echo "To push changes, switch the clone to SSH:"
-    echo "    git -C $MY_SHELL_DIR remote set-url origin git@github.com:dmarcelino/my-shell.git"
+    echo "    git -C $SHELLMOI_DIR remote set-url origin git@github.com:dmarcelino/shellmoi.git"
 }
 
 main "$@"
