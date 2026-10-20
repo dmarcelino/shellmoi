@@ -31,3 +31,10 @@ install_groma() {
     ensure node
     sudo npm install -g groma.md
 }
+
+# Agent skill: design vocabulary for building and polishing interfaces
+install_impeccable() {
+    ensure node
+    npx -y skills add pbakaus/impeccable --skill impeccable --agent claude-code codex --global --yes
+}
+installed_impeccable() { [ -e "$HOME/.claude/skills/impeccable" ]; }
