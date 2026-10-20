@@ -8,8 +8,8 @@ esac
 
 ## PATH ##
 
-# Private bin directories, if they exist; ~/.local/bin ends up first
-for dir in "$HOME/bin" "$HOME/.local/bin"; do
+# Tool and private bin directories, if they exist; ~/.local/bin ends up first
+for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOME/.local/bin"; do
     if [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]]; then
         PATH="$dir:$PATH"
     fi

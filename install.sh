@@ -92,6 +92,7 @@ deploy() {
     while IFS= read -r -d '' file; do
         case "$file" in
             README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh) continue ;;
+            install-tools.sh|tools/*) continue ;;
             .claude/skills|.codex/skills/*) continue ;;  # see deploy_skills
         esac
         target="$HOME/$file"
@@ -135,8 +136,9 @@ ensure_local_gitconfig() {
 check_diff_so_fancy() {
     if ! command -v diff-so-fancy >/dev/null 2>&1; then
         echo
-        echo "diff-so-fancy is not installed: git diffs will be plain, and lazygit expects it. See"
-        echo "    https://github.com/so-fancy/diff-so-fancy#install"
+        echo "diff-so-fancy is not installed: git diffs will be plain, and lazygit expects it."
+        echo "Install it with:"
+        echo "    $SHELLMOI_DIR/install-tools.sh shell"
     fi
 }
 

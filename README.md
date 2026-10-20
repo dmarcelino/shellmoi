@@ -15,7 +15,7 @@ The script needs `git`; if it is missing, the script prints the command to insta
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
-  `CLAUDE.md`, `.gitignore` and `install.sh`
+  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh` and `tools/`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
@@ -36,6 +36,43 @@ The clone uses HTTPS, which needs no SSH key. To push from it, switch to SSH:
 ```bash
 git -C ~/.local/share/shellmoi remote set-url origin git@github.com:dmarcelino/shellmoi.git
 ```
+
+## Tools
+
+`install-tools.sh` installs common tools on Debian and Ubuntu. Give it one or more tool
+files, by path or by name; it shows a checklist of their tools and installs the ticked
+ones:
+
+```bash
+~/.local/share/shellmoi/install-tools.sh ai dev
+```
+
+| File             | Tools                                                                     |
+| ---------------- | ------------------------------------------------------------------------- |
+| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat                     |
+| `tools/dev.sh`   | gh, docker-ce, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
+| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                     |
+| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma                        |
+
+Run it as your own user, not with `sudo`: many tools install into your home directory.
+Steps that need root call `sudo` themselves, and the password is asked once. A tool
+installs what it needs first, even from another file: codegraph and groma bring in node,
+worktrunk brings in rustup. Installed tools are marked in the checklist; tick one to
+install it again or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
+and the tools that need it.
+
+To add a tool, add a function to a tool file, with a description line above it:
+
+```bash
+# Short description for the checklist
+install_mytool() { apt_install mytool; }
+installed_mytool() { [ -d "$HOME/.mytool" ]; }  # optional; default: command -v mytool
+```
+
+Hyphens in a tool name become underscores in the function name (`install_docker_ce`).
+`install-tools.sh` provides the helpers: `ensure <tool>` for dependencies,
+`apt_install`, `add_apt_source`, `gh_latest`, `deb_arch`, `os_codename`, `enter_tmp` and
+`link_local`.
 
 ## Bash
 
@@ -71,8 +108,9 @@ fi
 
 The install script links `~/.bashrc` to this repository's `.bashrc`, which loads
 bash-completion (from the system or Homebrew), then bash-sensible, then `.bash_aliases`.
-It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin` and `~/.local/bin`
-to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN when they are installed.
+It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin`, `~/.local/bin`,
+Cargo's and Go's bin directories to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN
+when they are installed.
 
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
 prints a version.
