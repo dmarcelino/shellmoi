@@ -11,6 +11,25 @@ install_gh() {
     apt_install gh
 }
 
+# Large file storage for git; the git config expects it
+install_git_lfs() { apt_install git-lfs; }
+
+# Finds bugs in shell scripts
+install_shellcheck() { apt_install shellcheck; }
+
+# Finds secrets in git history and files; from GitHub, as the apt package lags far behind
+install_gitleaks() {
+    local version arch
+    version=$(gh_latest gitleaks/gitleaks)
+    version=${version#v}
+    arch=$(deb_arch | sed -e 's/amd64/x64/')
+    enter_tmp
+    curl -fsSLo gitleaks.tar.gz \
+        "https://github.com/gitleaks/gitleaks/releases/download/v$version/gitleaks_${version}_linux_$arch.tar.gz"
+    tar xf gitleaks.tar.gz gitleaks
+    sudo install gitleaks -D -t /usr/local/bin/
+}
+
 # Docker Engine, with the buildx and compose plugins
 install_docker_ce() {
     local distro

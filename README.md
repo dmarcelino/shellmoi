@@ -47,12 +47,12 @@ ones:
 ~/.local/share/shellmoi/install-tools.sh ai dev
 ```
 
-| File             | Tools                                                                     |
-| ---------------- | ------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat                     |
-| `tools/dev.sh`   | gh, docker-ce, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
-| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                     |
-| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma                        |
+| File             | Tools                                                                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                       |
+| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
+| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                    |
+| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma                                                       |
 
 Run it as your own user, not with `sudo`: many tools install into your home directory.
 Steps that need root call `sudo` themselves, and the password is asked once. A tool

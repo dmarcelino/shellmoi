@@ -38,3 +38,16 @@ install_bat() {
     apt_install bat
     link_local batcat bat
 }
+
+# Searches file contents by pattern; a faster grep that skips ignored files (rg)
+install_ripgrep() { apt_install ripgrep; }
+installed_ripgrep() { has rg; }
+
+# Reads, filters and reshapes JSON
+install_jq() { apt_install jq; }
+
+# Terminal multiplexer: split panes, sessions that survive a closed terminal
+install_tmux() { apt_install tmux; }
+
+# Converts line endings between Windows (CRLF) and Unix (LF)
+install_dos2unix() { apt_install dos2unix; }
