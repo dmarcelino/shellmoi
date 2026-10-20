@@ -1,0 +1,7 @@
+interface:
+  display_name: "Diagnose"
+  short_description: "Evidence first: contrasting checks, then root cause"
+  default_prompt: "Use $diagnose to find the root cause of this: gather contrasting evidence, list three checks for me, and wait for my answers before hypothesizing."
+
+policy:
+  allow_implicit_invocation: false

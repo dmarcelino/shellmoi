@@ -157,6 +157,8 @@ copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked expli
 | `brainstorm` | A multi-turn thinking partner: frame, explore, generate, challenge  |
 | `plainly`    | Explains something, or the previous answer, in simple words         |
 | `owl`        | Slow, multi-perspective analysis of a problem, question or decision |
+| `tdd`        | Test first: failing test, smallest fix, then passing test           |
+| `diagnose`   | Finds a root cause from evidence; asks for 3 checks before guessing |
 
 The install script links `~/.claude/skills/<name>` and `~/.codex/skills/<name>` to each
 skill. A skill already at that place is moved to `~/.claude/skills.bak.<timestamp>/` or
