@@ -93,6 +93,11 @@ alias kdesc='kubectl describe pod'
 alias kdel='kubectl delete pod'
 alias klogs='kubectl logs -f --tail 250'
 
+## MAVEN ##
+
+# Write the project's dependency report to dependencies.md; overwrites ./dist
+alias mvn-dependencies='mvn project-info-reports:dependencies && npx @wcj/html-to-markdown-cli target/reports/dependencies.html && mv dist/dependencies.html.md dependencies.md && rm -rf dist/'
+
 ## DOCKER ##
 
 alias docker-prune='docker network prune -f && docker image prune --all --filter "until=240h"'

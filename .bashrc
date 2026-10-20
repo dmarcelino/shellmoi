@@ -56,8 +56,15 @@ parse_git_branch() {
     git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
 }
 
-# user@host:folder(branch)$
-PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\W\[\033[01;31m\]$(parse_git_branch)\[\033[00m\]\$ '
+# Current kubectl namespace, e.g. "[default]"; only inside a path containing "helm"
+parse_kubectl_namespace() {
+    if [[ $PWD == *helm* ]] && command -v kubectl >/dev/null 2>&1; then
+        printf '[%s]' "$(kubectl config view --minify --output 'jsonpath={..namespace}' 2>/dev/null)"
+    fi
+}
+
+# user@host:folder(branch)[namespace]$
+PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\W\[\033[01;31m\]$(parse_git_branch)\[\033[01;33m\]$(parse_kubectl_namespace)\[\033[00m\]\$ '
 
 # If this is an xterm set the title to user@host: dir
 case "$TERM" in
