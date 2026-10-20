@@ -47,6 +47,12 @@ ones:
 ~/.local/share/shellmoi/install-tools.sh ai dev
 ```
 
+On a new machine, `all` goes through every tool file, one checklist each:
+
+```bash
+~/.local/share/shellmoi/install-tools.sh all
+```
+
 | File             | Tools                                                                                                    |
 | ---------------- | -------------------------------------------------------------------------------------------------------- |
 | `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                       |

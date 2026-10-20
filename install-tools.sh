@@ -3,6 +3,7 @@
 #
 #   ./install-tools.sh tools/ai.sh [tools/dev.sh ...]
 #   ./install-tools.sh ai dev           # same, by name
+#   ./install-tools.sh all              # every tool file
 #
 # Run it as your own user: tools that live in $HOME (claude, rustup, SDKMAN, uv) must not
 # land in root's home. Steps that need root call sudo themselves; the password is asked
@@ -27,6 +28,7 @@ usage() {
     echo
     echo "Tool files:"
     local file
+    printf '    %-8s %s\n' all "every file below"
     for file in "$TOOLS_DIR"/*.sh; do
         printf '    %-8s tools/%s\n' "$(basename "$file" .sh)" "$(basename "$file")"
     done
@@ -140,6 +142,15 @@ resolve_file() {
     fi
 }
 
+# Every tool file, shell.sh first: install.sh points there for the basics
+all_files() {
+    local file
+    [ -f "$TOOLS_DIR/shell.sh" ] && echo "$TOOLS_DIR/shell.sh"
+    for file in "$TOOLS_DIR"/*.sh; do
+        [ "$file" = "$TOOLS_DIR/shell.sh" ] || echo "$file"
+    done
+}
+
 STTY_SAVED=""
 
 # Runs again on EXIT after an INT: `read -n` puts the terminal back in raw mode while it
@@ -251,8 +262,12 @@ menu_select() {
 
 # Shows a checklist per tool file; adds the ticked tools to the CHOSEN array
 choose_tools() {
-    local file name desc i
+    local file name desc i n=0 progress=""
     for file in "$@"; do
+        n=$((n + 1))
+        if [ $# -gt 1 ]; then
+            progress=" ($n/$#)"
+        fi
         local names=() hints=() states=()
         while IFS=$'\t' read -r name desc; do
             # Missing tools start ticked
@@ -267,7 +282,8 @@ choose_tools() {
         done < <(list_tools "$file")
         [ ${#names[@]} -gt 0 ] || continue
 
-        menu_select "Install which tools from tools/$(basename "$file")?" names hints states
+        menu_select "Install which tools from tools/$(basename "$file")?$progress" \
+            names hints states
         for ((i = 0; i < ${#names[@]}; i++)); do
             if [ -n "${states[$i]}" ]; then
                 CHOSEN+=("${names[$i]}")
@@ -314,9 +330,22 @@ main() {
         exit 1
     fi
 
-    local files=() file
-    for file in "$@"; do
-        files+=("$(resolve_file "$file")")
+    local files=() found=() file arg
+    local -A seen=()
+    for arg in "$@"; do
+        # Checked before resolve_file, so a tools/all.sh can't hide it
+        if [ "$arg" = all ]; then
+            mapfile -t found < <(all_files)
+        else
+            found=("$(resolve_file "$arg")")
+        fi
+        # Each file once, so "all dev" doesn't show dev twice
+        for file in "${found[@]}"; do
+            if [ -z "${seen[$file]:-}" ]; then
+                seen[$file]=1
+                files+=("$file")
+            fi
+        done
     done
     # All tool files, so a tool can depend on a tool from another file
     for file in "$TOOLS_DIR"/*.sh "${files[@]}"; do
