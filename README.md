@@ -57,8 +57,9 @@ ones:
 Run it as your own user, not with `sudo`: many tools install into your home directory.
 Steps that need root call `sudo` themselves, and the password is asked once. A tool
 installs what it needs first, even from another file: codegraph and groma bring in node,
-worktrunk brings in rustup. Installed tools are marked in the checklist; tick one to
-install it again or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
+worktrunk brings in rustup. Missing tools start ticked, and `a` cycles between missing,
+all and none. Installed tools are marked in the checklist; tick one to install it again
+or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
 and the tools that need it.
 
 To add a tool, add a function to a tool file, with a description line above it:

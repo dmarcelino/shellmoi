@@ -159,13 +159,14 @@ cancel() {
 }
 
 # menu_select <title> <labels_array> <hints_array> <states_array>
-# Draws a checklist in place: up/down or k/j move, space toggles, enter confirms,
-# q or Esc cancels. Reads the initial choice from the states array ("1" ticked, ""
-# not) and writes the user's choice back to it.
+# Draws a checklist in place: up/down or k/j move, space toggles, a cycles the initial
+# choice, all and none, enter confirms, q or Esc cancels. Reads the initial choice from
+# the states array ("1" ticked, "" not) and writes the user's choice back to it.
 menu_select() {
     local title=$1
     local -n _labels=$2 _hints=$3 _states=$4
     local count=${#_labels[@]} cursor=0 drawn=0 width=0 cols i line key rest
+    local initial=("${_states[@]}")
 
     for ((i = 0; i < count; i++)); do
         if [ ${#_labels[$i]} -gt "$width" ]; then
@@ -198,7 +199,7 @@ menu_select() {
             printf '\033[2K%s\n' "${line:0:cols-1}"
         done
         printf '\033[2K\n'
-        printf '\033[2K%s\n' "  up/down move   space toggle   a all   enter confirm   q cancel"
+        printf '\033[2K%s\n' "  up/down move   space toggle   a missing/all/none   enter confirm   q cancel"
 
         IFS= read -rsn1 key || key=""
         case "$key" in
@@ -221,13 +222,21 @@ menu_select() {
                 fi
                 ;;
             a)
-                # Ticks all, or unticks all when all are ticked
-                local value=""
+                # Initial choice -> all -> none -> initial choice; from any other
+                # choice, back to the initial one
+                local all=1 same=1
                 for ((i = 0; i < count; i++)); do
-                    [ -z "${_states[$i]}" ] && value=1
+                    [ -z "${_states[$i]}" ] && all=""
+                    [ "${_states[$i]}" != "${initial[$i]}" ] && same=""
                 done
                 for ((i = 0; i < count; i++)); do
-                    _states[i]=$value
+                    if [ -n "$all" ]; then
+                        _states[i]=""
+                    elif [ -n "$same" ]; then
+                        _states[i]=1
+                    else
+                        _states[i]=${initial[$i]}
+                    fi
                 done
                 ;;
             ''|$'\n'|$'\r')
@@ -246,12 +255,15 @@ choose_tools() {
     for file in "$@"; do
         local names=() hints=() states=()
         while IFS=$'\t' read -r name desc; do
+            # Missing tools start ticked
             if is_installed "$name"; then
                 desc="$desc (installed)"
+                states+=("")
+            else
+                states+=(1)
             fi
             names+=("$name")
             hints+=("$desc")
-            states+=("")
         done < <(list_tools "$file")
         [ ${#names[@]} -gt 0 ] || continue
 
