@@ -15,7 +15,7 @@ The script needs `git`; if it is missing, the script prints the command to insta
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
-  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh` and `tools/`
+  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `tools/` and `tests/`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
@@ -36,6 +36,24 @@ The clone uses HTTPS, which needs no SSH key. To push from it, switch to SSH:
 ```bash
 git -C ~/.local/share/shellmoi remote set-url origin git@github.com:dmarcelino/shellmoi.git
 ```
+
+## Uninstall
+
+```bash
+~/.local/share/shellmoi/install.sh uninstall
+```
+
+It undoes the install:
+
+- removes every link into the clone and moves back the oldest `<file>.bak.<timestamp>`,
+  which holds what was there before the first install; newer backups stay, and are listed
+- leaves alone a file that is no longer a link into the clone
+- removes `.claude/settings.json`, `.codex/config.toml` and `~/.gitconfig` only if they
+  are still exactly what the install wrote
+- removes directories left empty
+
+The clone stays; delete it if you no longer need it. Run `tests/uninstall_test.sh` to
+check an install and uninstall round trip in a temporary home.
 
 ## Tools
 
