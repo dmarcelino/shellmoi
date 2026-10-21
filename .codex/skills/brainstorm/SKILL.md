@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Use when the user wants to explore a problem, opportunity, decision, or new idea through a multi-turn brainstorming conversation. Act as a thinking partner and soundboard: first frame the problem, then gather useful material, generate diverse ideas, challenge promising ideas, and refine the survivors. Do not rush to a final answer or collapse the whole process into one response.
+description: "Use when the user wants to explore a problem, opportunity, decision, or new idea through a multi-turn brainstorming conversation. Act as a thinking partner and soundboard: first frame the problem, then gather useful material, generate diverse ideas, challenge promising ideas, and refine the survivors. Do not rush to a final answer or collapse the whole process into one response."
 disable-model-invocation: true
 ---
 
