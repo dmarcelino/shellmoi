@@ -169,15 +169,16 @@ Skills for Claude Code and Codex, which read the same format. The repository kee
 copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked explicitly:
 `/<name>` in Claude Code, `$<name>` in Codex.
 
-| Skill        | What it does                                                        |
-| ------------ | ------------------------------------------------------------------- |
-| `ask`        | Answers a question from the codebase and the web; changes nothing   |
-| `brainstorm` | A multi-turn thinking partner: frame, explore, generate, challenge  |
-| `plainly`    | Explains something, or the previous answer, in simple words         |
-| `owl`        | Slow, multi-perspective analysis of a problem, question or decision |
-| `tdd`        | Test first: failing test, smallest fix, then passing test           |
-| `diagnose`   | Finds a root cause from evidence; asks for 3 checks before guessing |
-| `gaps`       | Finds gaps, contradictions and ambiguity in a request; asks first   |
+| Skill           | What it does                                                        |
+| --------------- | ------------------------------------------------------------------- |
+| `ask`           | Answers a question from the codebase and the web; changes nothing   |
+| `brainstorm`    | A multi-turn thinking partner: frame, explore, generate, challenge  |
+| `plainly`       | Explains something, or the previous answer, in simple words         |
+| `owl`           | Slow, multi-perspective analysis of a problem, question or decision |
+| `tdd`           | Test first: failing test, smallest fix, then passing test           |
+| `diagnose`      | Finds a root cause from evidence; asks for 3 checks before guessing |
+| `gaps`          | Finds gaps, contradictions and ambiguity in a request; asks first   |
+| `design-review` | Design review of a PR, branch or local work; edits nothing          |
 
 The install script links `~/.claude/skills/<name>` and `~/.codex/skills/<name>` to each
 skill. A skill already at that place is moved to `~/.claude/skills.bak.<timestamp>/` or

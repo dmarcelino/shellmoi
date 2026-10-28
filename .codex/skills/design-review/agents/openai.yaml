@@ -1,0 +1,7 @@
+interface:
+  display_name: "Design Review"
+  short_description: "Architect-level design review of a PR, branch or local work"
+  default_prompt: "Use $design-review to review the design of this change: architecture fit, abstractions, contracts, failure modes and simpler alternatives."
+
+policy:
+  allow_implicit_invocation: false
