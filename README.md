@@ -101,8 +101,9 @@ Run it as your own user, not with `sudo`: many tools install into your home dire
 Steps that need root call `sudo` themselves, and the password is asked once. A tool
 installs what it needs first, even from another file: codegraph and groma bring in node,
 worktrunk brings in rustup on Linux. Missing tools start ticked, and `a` cycles between missing,
-all and none. Installed tools are marked in the checklist; tick one to install it again
-or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
+all and none. After the checklist, the installs run without further questions, including
+Homebrew's confirmation before installing dependencies. Installed tools are marked in the
+checklist; tick one to install it again or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
 and the tools that need it.
 
 To add a tool, add a function to a tool file, with a description line above it:

@@ -40,7 +40,7 @@ if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
                 read -r answer || answer=n
                 case "$answer" in
                     [nN]*) ;;
-                    *) "$shellmoi_brew" install --quiet bash ;;
+                    *) HOMEBREW_NO_ASK=1 "$shellmoi_brew" install --quiet bash ;;
                 esac
             fi
             if [ -x "$shellmoi_bash" ]; then
@@ -62,6 +62,10 @@ TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools"
 # Where the installers put binaries; on PATH here so new tools are found right away, and
 # so installers that add their directory to ~/.bashrc when it is missing (codex) don't
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
+
+# The checklist is the only confirmation: Homebrew 7 otherwise asks before every install
+# that brings dependencies. A variable, not --yes, which older Homebrew rejects.
+export HOMEBREW_NO_ASK=1
 
 usage() {
     echo "Usage: $0 <tool file or name>..."

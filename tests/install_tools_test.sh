@@ -78,6 +78,9 @@ record() { echo "$*" >> "$calls"; }
 # Records each call; brew --prefix answers like Homebrew on Apple silicon
 brew() {
     record brew "$@"
+    if [ "${HOMEBREW_NO_ASK:-}" != 1 ]; then
+        record "brew without HOMEBREW_NO_ASK: $*"
+    fi
     if [ "$1" = --prefix ]; then
         echo /opt/homebrew
     fi
@@ -108,6 +111,10 @@ done < <(supported_tools)
 linux_steps=$(grep -E '^(apt_install|add_apt_source|deb_arch|os_codename|link_local|gh_latest|enter_tmp|sudo|dpkg|cargo) ' "$calls" || true)
 [ -z "$linux_steps" ] || fail "macOS installs took Linux steps:
 $linux_steps"
+
+asking=$(grep '^brew without HOMEBREW_NO_ASK' "$calls" || true)
+[ -z "$asking" ] || fail "brew would ask for confirmation after the checklist:
+$asking"
 
 expect_call() {
     grep -qxF "$1" "$calls" || fail "macOS installs did not run: $1"

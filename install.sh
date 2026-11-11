@@ -408,8 +408,13 @@ run_install() {
     check_local_changes
     echo
     echo "Done. Open a new shell to load the configuration."
-    echo "To push changes, switch the clone to SSH:"
-    echo "    git -C $SHELLMOI_DIR remote set-url origin git@github.com:dmarcelino/shellmoi.git"
+    # Only while the clone still uses HTTPS, which cannot push without a token
+    case "$(git -C "$SHELLMOI_DIR" remote get-url origin 2>/dev/null || true)" in
+        https://*)
+            echo "To push changes, switch the clone to SSH:"
+            echo "    git -C $SHELLMOI_DIR remote set-url origin git@github.com:dmarcelino/shellmoi.git"
+            ;;
+    esac
 }
 
 run_uninstall() {
