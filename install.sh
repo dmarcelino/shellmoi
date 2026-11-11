@@ -106,9 +106,68 @@ managed_files() {
 # Files the apps write to, so they are copied instead of linked
 is_copied_once() {
     case "$1" in
-        .claude/settings.json|.codex/config.toml) return 0 ;;
+        .codex/config.toml) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# JSON files the apps write to, and often create before shellmoi is installed: merged into
+# an existing file instead of skipped
+is_merged() {
+    case "$1" in
+        .claude/settings.json) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# What shellmoi did to a merged file, kept out of the apps' folders: <file>.installed marks
+# that the install copied or merged it, <file>.original is the file from before the merge
+STATE_DIR="$HOME/.local/state/shellmoi"
+
+# Prints shellmoi's settings merged with the existing ones; the existing ones win
+json_merge() {
+    jq -s '.[0] * .[1]' "$1" "$2"
+}
+
+# Installs shellmoi's settings once: copied if the file is missing, else merged into it with
+# the original kept for uninstall. Later runs leave the file alone, so a setting removed
+# from it stays removed.
+merge_json() {
+    local src=$1 target=$2 file=$3 marker="$STATE_DIR/$3.installed" original="$STATE_DIR/$3.original"
+    local merged="$target.shellmoi-merge"
+    if [ -e "$marker" ]; then
+        echo "  kept           ~/$file (installed before; yours to change)"
+        return
+    fi
+    mkdir -p "$(dirname "$marker")"
+    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+        cp "$src" "$target"
+        : > "$marker"
+        echo "  copied         ~/$file"
+        return
+    fi
+    if cmp -s "$src" "$target"; then
+        : > "$marker"
+        echo "  up to date     ~/$file"
+        return
+    fi
+    if [ -L "$target" ] || [ -e "$original" ] || ! command -v jq >/dev/null 2>&1; then
+        echo "  kept existing  ~/$file (not merged: needs jq, a plain file and no earlier"
+        echo "                 original in ${STATE_DIR#"$HOME"/}); compare with"
+        echo "                 diff ~/$file $src"
+        return
+    fi
+    # A copy of the target keeps its permissions, which may guard secrets in it
+    cp -p "$target" "$merged"
+    if ! json_merge "$src" "$target" > "$merged" 2>/dev/null; then
+        rm -f "$merged"
+        echo "  kept existing  ~/$file (not valid JSON, so not merged)"
+        return
+    fi
+    cp -p "$target" "$original"
+    mv "$merged" "$target"
+    : > "$marker"
+    echo "  merged         ~/$file (your settings win; original in ~/${original#"$HOME"/})"
 }
 
 # Prints the name of each skill directory, one per line
@@ -126,7 +185,9 @@ deploy() {
     while IFS= read -r -d '' file; do
         target="$HOME/$file"
         mkdir -p "$(dirname "$target")"
-        if is_copied_once "$file"; then
+        if is_merged "$file"; then
+            merge_json "$SHELLMOI_DIR/$file" "$target" "$file"
+        elif is_copied_once "$file"; then
             copy_once "$SHELLMOI_DIR/$file" "$target" "$file"
         else
             link "$SHELLMOI_DIR/$file" "$target" "$file"
@@ -218,10 +279,46 @@ uncopy_once() {
     fi
 }
 
+# Undoes merge_json: puts back the original from before the merge, if there was one. The
+# installed file goes if it is still what install wrote, else it stays as a backup.
+unmerge_json() {
+    local src=$1 file=$2 target="$HOME/$2" marker="$STATE_DIR/$2.installed"
+    local original="$STATE_DIR/$2.original" backup
+    if [ ! -e "$original" ]; then
+        uncopy_once "$src" "$file"
+        rm -f "$marker"
+        remove_empty_dirs "$(dirname "$marker")"
+        return
+    fi
+    if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
+        echo "  kept           ~/$file (not a shellmoi file)"
+        return
+    fi
+    if [ -f "$target" ]; then
+        if command -v jq >/dev/null 2>&1 &&
+            json_merge "$src" "$original" 2>/dev/null | cmp -s - "$target"; then
+            rm "$target"
+        else
+            backup="$HOME/$file$BACKUP_SUFFIX"
+            while [ -e "$backup" ] || [ -L "$backup" ]; do
+                backup="$backup.1"
+            done
+            mv "$target" "$backup"
+            echo "  left backup    ~/${backup#"$HOME"/} (changed since the merge)"
+        fi
+    fi
+    mv "$original" "$target"
+    rm -f "$marker"
+    echo "  restored       ~/$file (from before the merge)"
+    remove_empty_dirs "$(dirname "$marker")"
+}
+
 undeploy() {
     local file
     while IFS= read -r -d '' file; do
-        if is_copied_once "$file"; then
+        if is_merged "$file"; then
+            unmerge_json "$SHELLMOI_DIR/$file" "$file"
+        elif is_copied_once "$file"; then
             uncopy_once "$SHELLMOI_DIR/$file" "$file"
         else
             unlink_restore "$SHELLMOI_DIR/$file" "$file"
@@ -267,9 +364,36 @@ check_bash_completion() {
     echo
     echo "bash-completion is not installed. Install it with:"
     echo "    $(pkg_install_hint bash-completion)"
-    if [ "$(uname -s)" = Darwin ]; then
-        echo "macOS also needs a newer Bash as the login shell; see the README."
-    fi
+}
+
+# macOS starts zsh or Bash 3.2 by default; this configuration needs Bash 4 or later
+check_login_shell() {
+    local version brew_bash
+    [ "$(uname -s)" = Darwin ] && [ -n "${SHELL:-}" ] || return 0
+    version=$("$SHELL" -c 'echo "${BASH_VERSINFO[0]:-0}"' 2>/dev/null) || version=0
+    [ "${version:-0}" -lt 4 ] || return 0
+    brew_bash="$(brew --prefix 2>/dev/null || echo /opt/homebrew)/bin/bash"
+    echo
+    echo "Your login shell, $SHELL, is not Bash 4 or later, which this configuration needs."
+    echo "Install Bash from Homebrew and make it your login shell:"
+    [ -x "$brew_bash" ] || echo "    brew install bash"
+    grep -qx "$brew_bash" /etc/shells 2>/dev/null ||
+        echo "    echo $brew_bash | sudo tee -a /etc/shells"
+    echo "    chsh -s $brew_bash"
+}
+
+# The files in ~ are links into the clone, so an installer that appends to ~/.bashrc edits
+# a file of this public repository
+check_local_changes() {
+    local changes
+    changes=$(git -C "$SHELLMOI_DIR" status --porcelain --untracked-files=no 2>/dev/null) ||
+        return 0
+    [ -n "$changes" ] || return 0
+    echo
+    echo "These files in $SHELLMOI_DIR have local changes:"
+    echo "$changes" | sed 's/^/    /'
+    echo "They are linked into ~, so whatever edits ~/.bashrc and the like edits them."
+    echo "Move private or machine-specific lines to ~/.bashrc.local, which git ignores."
 }
 
 run_install() {
@@ -278,8 +402,10 @@ run_install() {
     deploy
     deploy_skills
     ensure_local_gitconfig
+    check_login_shell
     check_bash_completion
     check_diff_so_fancy
+    check_local_changes
     echo
     echo "Done. Open a new shell to load the configuration."
     echo "To push changes, switch the clone to SSH:"

@@ -1,6 +1,22 @@
 # Tools for any shell. Sourced by install-tools.sh, which provides the helpers.
 # shellcheck shell=bash
 
+# Bash 5 from Homebrew: macOS ships Bash 3.2, too old for bash-sensible and bash-completion
+install_bash() {
+    local bash
+    brew_install bash
+    bash="$(brew --prefix)/bin/bash"
+    if [ "${SHELL:-}" != "$bash" ]; then
+        echo "Make it your login shell (asks for your password):"
+        if ! grep -qx "$bash" /etc/shells 2>/dev/null; then
+            echo "    echo $bash | sudo tee -a /etc/shells"
+        fi
+        echo "    chsh -s $bash"
+    fi
+}
+installed_bash() { [ -x "$(brew --prefix)/bin/bash" ]; }
+supported_bash() { is_mac; }
+
 # Tab completion for commands and their options
 install_bash_completion() {
     if is_mac; then brew_install bash-completion@2; return; fi

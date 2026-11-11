@@ -20,10 +20,42 @@ set -euo pipefail
 
 if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]; }; then
+    # macOS ships Bash 3.2, and `env bash` finds it first outside an interactive shell:
+    # start again under Homebrew's bash, offering to install it. Only when run, not when
+    # sourced, which would restart the caller. Bash 3.2-safe up to exec.
+    if [ "$(uname -s)" = Darwin ] && [ -z "${SHELLMOI_REEXEC:-}" ] &&
+        [ "${BASH_SOURCE[0]}" = "$0" ]; then
+        shellmoi_brew=""
+        for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+            if [ -x "$candidate" ]; then
+                shellmoi_brew=$candidate
+                break
+            fi
+        done
+        if [ -n "$shellmoi_brew" ]; then
+            shellmoi_bash="$("$shellmoi_brew" --prefix)/bin/bash"
+            if [ ! -x "$shellmoi_bash" ] && [ -t 0 ]; then
+                echo "This script needs Bash 4.3 or later; this is $BASH_VERSION."
+                printf 'Install Bash from Homebrew now? [Y/n] '
+                read -r answer || answer=n
+                case "$answer" in
+                    [nN]*) ;;
+                    *) "$shellmoi_brew" install --quiet bash ;;
+                esac
+            fi
+            if [ -x "$shellmoi_bash" ]; then
+                export SHELLMOI_REEXEC=1
+                exec "$shellmoi_bash" "$0" "$@"
+            fi
+        fi
+    fi
     echo "This script needs Bash 4.3 or later; this is $BASH_VERSION." >&2
-    echo "On macOS: brew install bash, then run it again from a new shell." >&2
+    if [ "$(uname -s)" = Darwin ]; then
+        echo "Install it with Homebrew (https://brew.sh): brew install bash" >&2
+    fi
     exit 1
 fi
+unset SHELLMOI_REEXEC
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools"
 

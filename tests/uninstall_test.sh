@@ -4,7 +4,7 @@
 #   tests/uninstall_test.sh
 #
 # Runs install.sh from the working tree; the files it links come from a local clone, so
-# no network is needed.
+# no network is needed. Needs jq, which merges the Claude settings.
 
 set -euo pipefail
 
@@ -37,6 +37,8 @@ shellmoi() {
         fail "install.sh $* exited non-zero: $(cat "$work/out")"
 }
 
+command -v jq >/dev/null 2>&1 || fail "this test needs jq, which merges the Claude settings"
+
 expect_same() {
     local label=$1 expected=$2 actual=$3
     if [ "$expected" != "$actual" ]; then
@@ -56,7 +58,7 @@ echo 'original bashrc' > "$home/.bashrc"
 echo 'original inputrc' > "$home/.inputrc"
 echo 'original lazygit' > "$home/.config/lazygit/config.yml"
 echo 'backup by another tool' > "$home/.bashrc.bak.20200101000000"
-echo '{}' > "$home/.claude/settings.json"
+echo '{"theme": "mine"}' > "$home/.claude/settings.json"
 ln -s "$home/elsewhere/$skill" "$home/.claude/skills/$skill"
 ln -s "$home/elsewhere/$skill" "$home/.codex/skills/other"
 
@@ -65,6 +67,16 @@ before=$(snapshot)
 shellmoi
 shellmoi
 [ -L "$home/.bashrc" ] || fail "install did not link ~/.bashrc"
+
+# The Claude settings that were there are merged with shellmoi's, and theirs win
+settings=$home/.claude/settings.json
+[ "$(jq -r .theme "$settings")" = mine ] || fail "the merge lost a setting that was there"
+[ "$(jq -c .permissions "$settings")" = "$(jq -c .permissions "$clone/.claude/settings.json")" ] ||
+    fail "the merge did not add shellmoi's settings: $(cat "$settings")"
+[ -f "$home/.local/state/shellmoi/.claude/settings.json.original" ] ||
+    fail "the merge did not keep the original Claude settings"
+grep -q "kept           ~/.claude/settings.json" "$work/out" ||
+    fail "a second install did not leave the merged Claude settings alone"
 
 # Something replaced a link with a plain file; the next install backs it up again
 rm "$home/.inputrc"
@@ -88,5 +100,34 @@ expect_same "uninstall did not restore the home as it was" \
 
 shellmoi uninstall
 expect_same "a second uninstall changed the home" "$after" "$(snapshot)"
+
+## CLAUDE SETTINGS CHANGED AFTER THE MERGE ##
+
+home=$work/home2
+settings=$home/.claude/settings.json
+mode() { ls -l "$1" | cut -c1-10; }
+mkdir -p "$home/.claude"
+echo '{"theme": "mine"}' > "$settings"
+chmod 600 "$settings"
+
+shellmoi
+[ "$(mode "$settings")" = -rw------- ] || fail "the merge changed the settings' permissions"
+
+# A shellmoi setting removed after the merge stays removed
+jq 'del(.model)' "$settings" > "$work/edited"
+cat "$work/edited" > "$settings"
+shellmoi
+[ "$(jq 'has("model")' "$settings")" = false ] || fail "a later install put back a removed setting"
+
+shellmoi uninstall
+[ "$(cat "$settings")" = '{"theme": "mine"}' ] ||
+    fail "uninstall did not restore the original settings: $(cat "$settings")"
+[ "$(mode "$settings")" = -rw------- ] || fail "uninstall changed the settings' permissions"
+changed=$(cd "$home/.claude" && ls -d settings.json.bak.*)
+[ "$(jq -c '{theme, model}' "$home/.claude/$changed")" = '{"theme":"mine","model":null}' ] ||
+    fail "the backup does not hold the settings as changed after the merge"
+grep -q "left backup    ~/.claude/$changed" "$work/out" ||
+    fail "uninstall did not list the backup of the changed settings"
+[ ! -e "$home/.local" ] || fail "uninstall left shellmoi's state behind"
 
 echo "PASS"

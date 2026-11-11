@@ -18,12 +18,22 @@ The script needs `git`; if it is missing, the script prints the command to insta
   `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `tools/` and `tests/`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
-- copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
-  only if they do not exist yet, because Claude Code and Codex write to these files
+- copies `.claude/settings.json` and `.codex/config.toml` instead of linking them,
+  because Claude Code and Codex write to these files. `.codex/config.toml` is copied only
+  if it does not exist yet. An existing `.claude/settings.json`, which Claude Code creates
+  on first run, gets shellmoi's settings merged in with `jq` once, on the first install:
+  settings already there win, including whole lists such as `permissions.allow`, and the
+  original is kept in `~/.local/state/shellmoi/`. Later runs leave the file alone, so a
+  setting you remove stays removed. Without `jq` it is left alone, and the script prints
+  a `diff` command to compare
 - links each skill directory on its own (see [Skills](#skills)), so other skills already
   in `~/.claude/skills` and `~/.codex/skills` stay
-- prints the command to install bash-completion if it is missing (see below); it never
-  runs `sudo`
+- prints the command to install bash-completion if it is missing (see below), and on
+  macOS the commands to make Homebrew's Bash the login shell if it is not; it never runs
+  `sudo`
+- lists files of the clone with local changes: the files in `~` are links into it, so an
+  installer that appends to `~/.bashrc` edits this public repository. Move such lines to
+  `~/.bashrc.local`
 
 Run the same command again, or `~/.local/share/shellmoi/install.sh`, to update. Files
 that are already linked are left alone.
@@ -50,6 +60,8 @@ It undoes the install:
 - leaves alone a file that is no longer a link into the clone
 - removes `.claude/settings.json`, `.codex/config.toml` and `~/.gitconfig` only if they
   are still exactly what the install wrote
+- puts back the `.claude/settings.json` from before the merge; the merged one is removed
+  if unchanged, else kept as `settings.json.bak.<timestamp>`
 - removes directories left empty
 
 The clone stays; delete it if you no longer need it. Run `tests/uninstall_test.sh` to
@@ -58,7 +70,8 @@ check an install and uninstall round trip in a temporary home.
 ## Tools
 
 `install-tools.sh` installs common tools on Debian, Ubuntu and macOS (with Homebrew); it
-needs Bash 4.3 or later. Give it one or more tool
+needs Bash 4.3 or later. On macOS, started by the system's Bash 3.2, it starts again under
+Homebrew's Bash, and offers to install it if it is missing. Give it one or more tool
 files, by path or by name; it shows a checklist of their tools and installs the ticked
 ones:
 
@@ -74,7 +87,7 @@ On a new machine, `all` goes through every tool file, one checklist each:
 
 | File             | Tools                                                                                                            |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                               |
+| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                 |
 | `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
 | `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                            |
 | `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma, impeccable                                                   |
@@ -128,8 +141,8 @@ Install it with your package manager:
 
 For other systems, see the [package list on Repology](https://repology.org/project/bash-completion).
 
-macOS ships Bash 3.2, which is too old for both projects, hence the Homebrew `bash`. Make
-it your login shell:
+macOS ships Bash 3.2, which is too old for both projects, hence the Homebrew `bash`
+(also in `install-tools.sh shell`). Make it your login shell:
 
 ```bash
 echo "$(brew --prefix)/bin/bash" | sudo tee -a /etc/shells
@@ -144,9 +157,23 @@ and then `~/.bashrc`.
 
 The install script links `~/.bashrc` to this repository's `.bashrc`, which loads
 bash-completion (from the system or Homebrew), then bash-sensible, then `.bash_aliases`.
-It also sets the prompt to `user@host:folder(branch)$`, adds `~/bin`, `~/.local/bin`,
-Cargo's and Go's bin directories to `PATH`, and sets up kubectl, nvm, worktrunk and SDKMAN
-when they are installed.
+It also sets the prompt to `user@host:folder(branch)$`, and sets up kubectl, nvm, fzf's
+key bindings (Ctrl-R history, Ctrl-T files, Alt-C folders), worktrunk and SDKMAN when they
+are installed. With Apple's git, it loads git's completion from the Command Line Tools,
+where bash-completion does not look.
+
+`PATH` comes first, before the check that stops non-interactive shells, so `bash -lc`
+from an IDE or an agent finds the same commands on `PATH`: Homebrew, then `~/bin`,
+`~/.local/bin`, Cargo's and Go's bin directories, with `~/.local/bin` first and repeated
+entries removed. On macOS this also puts Homebrew's Bash before `/bin/bash`, which
+`path_helper` lists first in login shells. What a shell function provides, such as nvm's
+and SDKMAN's versions of node and java, still needs an interactive shell. Debian's
+`~/.profile` adds `~/bin` and `~/.local/bin` again after `.bashrc` runs, so a login shell
+there can list them twice.
+
+A command run over SSH, such as `ssh mac-box claude`, starts a non-interactive shell that
+reads none of these files on macOS, so `PATH` is the system's. Run it in a login shell
+instead: `ssh mac-box bash -lc claude`.
 
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
 prints a version.
@@ -160,7 +187,8 @@ Put secrets, work-specific aliases and anything else machine-specific in `~/.bas
 
 Type the start of a command, then press Up or Down to step through the history entries
 that start with it. bash-sensible sets this for Bash, and `.inputrc` sets it for every
-other program that uses Readline, such as `python` and `psql`.
+other program that uses Readline, such as `python` and `psql`. `.inputrc` first includes
+`/etc/inputrc`, where Debian keeps its Home, End and Ctrl+arrow keys.
 
 ## Git
 
@@ -173,6 +201,14 @@ Keep `user.name`, `user.email` and credential helpers in `~/.gitconfig`, which i
 tracked. Git reads it after `.config/git/config`, and `git config --global` writes to it.
 The install script creates an empty one if it is missing: without it,
 `git config --global` would write to `.config/git/config` in this repository.
+
+## WezTerm
+
+`.config/wezterm/wezterm.lua` shows the folder in tab titles and uses a slim window frame.
+Hosts and usernames stay in `~/.config/wezterm/wezterm_private.lua`, which git ignores;
+copy `wezterm_private.example.lua` to start one. With it, WezTerm offers its SSH domains
+and opens the default one on launch; without it, WezTerm opens a local shell. Ctrl+Alt+V
+pastes a clipboard image to the SSH host of the pane, on Windows only.
 
 ## Skills
 

@@ -8,6 +8,16 @@
 
 set -euo pipefail
 
+# install-tools.sh needs Bash 4.3; on macOS, run under Homebrew's bash instead of 3.2.
+# Before anything else, as exec skips the cleanup trap below.
+if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
+    for bash in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+        if [ -x "$bash" ]; then
+            exec "$bash" "$0" "$@"
+        fi
+    done
+fi
+
 repo=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -52,10 +62,12 @@ expect_tool() {
 is_mac() { return 1; }
 expect_tool Linux docker-ce offered
 expect_tool Linux colima hidden
+expect_tool Linux bash hidden
 
 is_mac() { return 0; }
 expect_tool macOS colima offered
 expect_tool macOS docker-ce hidden
+expect_tool macOS bash offered
 
 ## NO LINUX STEPS ON MACOS ##
 
@@ -100,6 +112,7 @@ $linux_steps"
 expect_call() {
     grep -qxF "$1" "$calls" || fail "macOS installs did not run: $1"
 }
+expect_call "brew install --quiet bash"
 expect_call "brew install --quiet worktrunk"
 expect_call "brew install --quiet hashicorp/tap/terraform"
 expect_call "brew install --quiet colima docker docker-compose docker-buildx"

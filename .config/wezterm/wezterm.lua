@@ -2,8 +2,17 @@ local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
 -- Hosts and usernames live in a private, uncommitted file next to this one
--- (copy wezterm_private.example.lua to wezterm_private.lua)
-local private = dofile(wezterm.config_dir .. '/wezterm_private.lua')
+-- (copy wezterm_private.example.lua to wezterm_private.lua). Without it, WezTerm opens a
+-- local shell; with it, errors in it still show.
+local private = {}
+local private_path = wezterm.config_dir .. '/wezterm_private.lua'
+local private_file = io.open(private_path, 'r')
+if private_file then
+  private_file:close()
+  private = dofile(private_path)
+end
+
+local is_windows = wezterm.target_triple:find('windows') ~= nil
 
 -- Change tab title to show the current working directory instead of the default "user@host:dir"
 wezterm.on('format-tab-title', function(tab)
@@ -15,7 +24,10 @@ wezterm.on('format-tab-title', function(tab)
     -- Newer WezTerm returns a Url object, older versions a "file://host/path" string
     local path = type(cwd) == 'userdata' and cwd.file_path
                  or tostring(cwd):gsub('^file://[^/]*', '')
-    path = path:gsub('^/home/[^/]+', '~')   -- shorten home to ~
+    -- shorten home to ~: Linux, macOS, Windows ("/C:/Users/name")
+    for _, home in ipairs({ '^/home/[^/]+', '^/Users/[^/]+', '^/%a:/Users/[^/]+' }) do
+      path = path:gsub(home, '~')
+    end
     title = path:match('([^/]+)/?$') or path -- keep only the last folder
   end
 
@@ -23,15 +35,22 @@ wezterm.on('format-tab-title', function(tab)
 end)
 
 -- SSH domains for remote hosts
-config.ssh_domains = private.ssh_domains
+if private.ssh_domains then
+  config.ssh_domains = private.ssh_domains
+end
 
--- Launching WezTerm connects straight to the default server
-config.default_gui_startup_args = { 'connect', private.default_domain }
+-- Launching WezTerm connects straight to the default server, if there is one
+if private.default_domain then
+  config.default_gui_startup_args = { 'connect', private.default_domain }
+end
 
 -- The tab bar
 config.window_frame = {
-  -- The font used in the tab bar.
-  font = wezterm.font { family = 'Roboto', weight = 'Medium' },
+  -- The font used in the tab bar; macOS has no Roboto Medium (WezTerm bundles only Bold)
+  font = wezterm.font {
+    family = wezterm.target_triple:find('darwin') and 'Helvetica Neue' or 'Roboto',
+    weight = 'Medium',
+  },
   -- The size of the font in the tab bar. Default to 10.0 on Windows
   font_size = 12.0,
 }
@@ -39,35 +58,38 @@ config.window_frame = {
 -- window bar
 config.window_decorations = "RESIZE"
 
--- paste image from clipboard to remote host
-config.keys = {
-  { key = 'v', mods = 'CTRL|ALT', action = wezterm.action_callback(function(window, pane)
-      local function fail(msg, err)
-        wezterm.log_error('clip paste: ' .. msg .. ' ' .. (err or ''))
-        window:toast_notification('Image paste', msg, nil, 4000)
-      end
-      wezterm.log_info('clip paste: triggered')
-      -- Upload to the host of the focused pane; domain names equal their SSH hosts
-      local host = pane:get_domain_name()
-      local is_ssh = false
-      for _, d in ipairs(config.ssh_domains) do
-        if d.name == host then is_ssh = true end
-      end
-      if not is_ssh then return fail('Pane is not on an SSH domain (' .. host .. ')') end
-      local name = 'clip-' .. os.time() .. '.png'
-      local tmp = os.getenv('TEMP') .. '\\' .. name
-      local ok, _, err = wezterm.run_child_process({ 'powershell.exe', '-NoProfile', '-Command',
-        "Add-Type -AssemblyName System.Windows.Forms; $i=[Windows.Forms.Clipboard]::GetImage(); " ..
-        "if(-not $i){exit 1}; $i.Save('" .. tmp .. "',[Drawing.Imaging.ImageFormat]::Png)" })
-      if not ok then return fail('No image on the clipboard', err) end
-      -- Relative to the remote home dir, so it works on Linux (/home) and macOS (/Users);
-      -- scp resolves a relative remote path against home, the shell resolves ~
-      local dest = '.cache/clip/' .. name
-      ok, _, err = wezterm.run_child_process({ 'scp', '-o', 'BatchMode=yes', tmp, host .. ':' .. dest })
-      os.remove(tmp)
-      if not ok then return fail('scp to ' .. host .. ' failed', err) end
-      pane:send_text('~/' .. dest .. ' ')
-  end) },
-}
+-- paste image from clipboard to remote host; reads the clipboard with PowerShell, so
+-- Windows only
+if is_windows then
+  config.keys = {
+    { key = 'v', mods = 'CTRL|ALT', action = wezterm.action_callback(function(window, pane)
+        local function fail(msg, err)
+          wezterm.log_error('clip paste: ' .. msg .. ' ' .. (err or ''))
+          window:toast_notification('Image paste', msg, nil, 4000)
+        end
+        wezterm.log_info('clip paste: triggered')
+        -- Upload to the host of the focused pane; domain names equal their SSH hosts
+        local host = pane:get_domain_name()
+        local is_ssh = false
+        for _, d in ipairs(config.ssh_domains or {}) do
+          if d.name == host then is_ssh = true end
+        end
+        if not is_ssh then return fail('Pane is not on an SSH domain (' .. host .. ')') end
+        local name = 'clip-' .. os.time() .. '.png'
+        local tmp = os.getenv('TEMP') .. '\\' .. name
+        local ok, _, err = wezterm.run_child_process({ 'powershell.exe', '-NoProfile', '-Command',
+          "Add-Type -AssemblyName System.Windows.Forms; $i=[Windows.Forms.Clipboard]::GetImage(); " ..
+          "if(-not $i){exit 1}; $i.Save('" .. tmp .. "',[Drawing.Imaging.ImageFormat]::Png)" })
+        if not ok then return fail('No image on the clipboard', err) end
+        -- Relative to the remote home dir, so it works on Linux (/home) and macOS (/Users);
+        -- scp resolves a relative remote path against home, the shell resolves ~
+        local dest = '.cache/clip/' .. name
+        ok, _, err = wezterm.run_child_process({ 'scp', '-o', 'BatchMode=yes', tmp, host .. ':' .. dest })
+        os.remove(tmp)
+        if not ok then return fail('scp to ' .. host .. ' failed', err) end
+        pane:send_text('~/' .. dest .. ' ')
+    end) },
+  }
+end
 
 return config
