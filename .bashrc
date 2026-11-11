@@ -6,7 +6,19 @@ case $- in
       *) return;;
 esac
 
+# Tells ~/.bash_profile this file already ran
+SHELLMOI_BASHRC=1
+
 ## PATH ##
+
+# Homebrew (macOS or Linux), if installed; before the directories below, which go in front
+for brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+    if [ -x "$brew" ]; then
+        eval "$("$brew" shellenv bash)"
+        break
+    fi
+done
+unset brew
 
 # Tool and private bin directories, if they exist; ~/.local/bin ends up first
 for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOME/.local/bin"; do
@@ -15,15 +27,6 @@ for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOM
     fi
 done
 unset dir
-
-# Homebrew (macOS or Linux), if installed
-for brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
-    if [ -x "$brew" ]; then
-        eval "$("$brew" shellenv bash)"
-        break
-    fi
-done
-unset brew
 
 ## DEFAULTS ##
 

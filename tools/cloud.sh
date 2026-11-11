@@ -3,6 +3,7 @@
 
 # Kubernetes CLI
 install_kubectl() {
+    if is_mac; then brew_install kubernetes-cli; return; fi
     local version
     version=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
     enter_tmp
@@ -14,6 +15,7 @@ install_kubectl() {
 
 # Kubernetes package manager
 install_helm() {
+    if is_mac; then brew_install helm; return; fi
     enter_tmp
     curl -fsSLo get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
     bash get_helm.sh
@@ -21,6 +23,7 @@ install_helm() {
 
 # AWS CLI v2
 install_aws() {
+    if is_mac; then brew_install awscli; return; fi
     apt_install unzip
     enter_tmp
     curl -fsSLo awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip"
@@ -30,6 +33,7 @@ install_aws() {
 
 # Amazon EKS CLI
 install_eksctl() {
+    if is_mac; then brew_install eksctl; return; fi
     local platform
     platform="Linux_$(deb_arch)"
     enter_tmp
@@ -40,8 +44,10 @@ install_eksctl() {
     sudo install -m 0755 eksctl /usr/local/bin
 }
 
-# Infrastructure as code, from HashiCorp's apt repository
+# Infrastructure as code
 install_terraform() {
+    # From HashiCorp's own tap and apt repository: Homebrew core no longer has it
+    if is_mac; then brew_install hashicorp/tap/terraform; return; fi
     apt_install gnupg
     add_apt_source hashicorp https://apt.releases.hashicorp.com/gpg \
         "https://apt.releases.hashicorp.com $(os_codename) main"

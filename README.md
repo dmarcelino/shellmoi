@@ -57,7 +57,8 @@ check an install and uninstall round trip in a temporary home.
 
 ## Tools
 
-`install-tools.sh` installs common tools on Debian and Ubuntu. Give it one or more tool
+`install-tools.sh` installs common tools on Debian, Ubuntu and macOS (with Homebrew); it
+needs Bash 4.3 or later. Give it one or more tool
 files, by path or by name; it shows a checklist of their tools and installs the ticked
 ones:
 
@@ -71,17 +72,22 @@ On a new machine, `all` goes through every tool file, one checklist each:
 ~/.local/share/shellmoi/install-tools.sh all
 ```
 
-| File             | Tools                                                                                                    |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                       |
-| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
-| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                    |
-| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma, impeccable                                           |
+| File             | Tools                                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `tools/shell.sh` | bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                               |
+| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
+| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                            |
+| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma, impeccable                                                   |
+
+On macOS most tools come from Homebrew, and nothing needs `sudo`. Docker runs in a
+[Colima](https://github.com/abiosoft/colima) VM that starts at login: the checklist shows
+colima on macOS and docker-ce on Linux. Terraform comes from HashiCorp's own tap, as
+Homebrew core no longer has it.
 
 Run it as your own user, not with `sudo`: many tools install into your home directory.
 Steps that need root call `sudo` themselves, and the password is asked once. A tool
 installs what it needs first, even from another file: codegraph and groma bring in node,
-worktrunk brings in rustup. Missing tools start ticked, and `a` cycles between missing,
+worktrunk brings in rustup on Linux. Missing tools start ticked, and `a` cycles between missing,
 all and none. Installed tools are marked in the checklist; tick one to install it again
 or update it. No installer edits `~/.bashrc`: it already sets up `PATH`
 and the tools that need it.
@@ -90,14 +96,17 @@ To add a tool, add a function to a tool file, with a description line above it:
 
 ```bash
 # Short description for the checklist
-install_mytool() { apt_install mytool; }
+install_mytool() { pkg_install mytool; }
 installed_mytool() { [ -d "$HOME/.mytool" ]; }  # optional; default: command -v mytool
+supported_mytool() { ! is_mac; }                # optional; false hides it on this system
 ```
 
+`pkg_install` uses apt on Linux and Homebrew on macOS, for packages with the same name in
+both. Otherwise start the function with `if is_mac; then brew_install <formula>; return; fi`.
 Hyphens in a tool name become underscores in the function name (`install_docker_ce`).
-`install-tools.sh` provides the helpers: `ensure <tool>` for dependencies,
-`apt_install`, `add_apt_source`, `gh_latest`, `deb_arch`, `os_codename`, `enter_tmp` and
-`link_local`.
+`install-tools.sh` provides the helpers: `ensure <tool>` for dependencies, `is_mac`,
+`pkg_install`, `apt_install`, `brew_install`, `npm_global`, `add_apt_source`,
+`gh_latest`, `deb_arch`, `os_codename`, `enter_tmp` and `link_local`.
 
 ## Bash
 
@@ -120,14 +129,16 @@ Install it with your package manager:
 For other systems, see the [package list on Repology](https://repology.org/project/bash-completion).
 
 macOS ships Bash 3.2, which is too old for both projects, hence the Homebrew `bash`. Make
-it your login shell with `chsh`, and source `~/.bashrc` from `~/.bash_profile`:
+it your login shell:
 
 ```bash
-# ~/.bash_profile
-if [[ -f ~/.bashrc ]]; then
-  source ~/.bashrc
-fi
+echo "$(brew --prefix)/bin/bash" | sudo tee -a /etc/shells
+chsh -s "$(brew --prefix)/bin/bash"
 ```
+
+macOS terminals start login shells, which read `~/.bash_profile` rather than `~/.bashrc`.
+The install script links this repository's `.bash_profile`, which loads `~/.profile`
+and then `~/.bashrc`.
 
 ### 2. The repository's `.bashrc`
 

@@ -5,6 +5,10 @@
 if [ -x /usr/bin/dircolors ]; then
     alias ls='ls --color=auto'
     alias grep='grep --color=auto'
+elif [ "$(uname -s)" = Darwin ]; then
+    # macOS ls takes -G for colors, not --color
+    alias ls='ls -G'
+    alias grep='grep --color=auto'
 fi
 
 alias ll='ls -alF'

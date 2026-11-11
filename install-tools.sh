@@ -12,10 +12,18 @@
 # Each tool file defines one function per tool, with a "# description" line above it:
 #   install_<tool>     installs it (hyphens in <tool> become underscores)
 #   installed_<tool>   optional check; the default is `command -v <tool>`
+#   supported_<tool>   optional check; false hides the tool on this system
 # A tool installs what it needs first with `ensure <other-tool>`.
-# Debian and Ubuntu only.
+# Debian, Ubuntu and macOS (Homebrew). Needs Bash 4.3 or later.
 
 set -euo pipefail
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
+    { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]; }; then
+    echo "This script needs Bash 4.3 or later; this is $BASH_VERSION." >&2
+    echo "On macOS: brew install bash, then run it again from a new shell." >&2
+    exit 1
+fi
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools"
 
@@ -40,6 +48,10 @@ has() {
     command -v "$1" >/dev/null 2>&1
 }
 
+is_mac() {
+    [ "$(uname -s)" = Darwin ]
+}
+
 # Debian architecture name: amd64 or arm64
 deb_arch() {
     dpkg --print-architecture
@@ -59,7 +71,7 @@ gh_latest() {
 
 # Changes to a new empty directory for downloads; removed when the script exits
 enter_tmp() {
-    cd "$(mktemp -d -p "$WORK_DIR")"
+    cd "$(mktemp -d "$WORK_DIR/tmp.XXXXXX")"
 }
 
 apt_install() {
@@ -68,6 +80,28 @@ apt_install() {
         touch "$WORK_DIR/apt-updated"
     fi
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "$@"
+}
+
+brew_install() {
+    brew install --quiet "$@"
+}
+
+# Installs packages that have the same name in apt and Homebrew
+pkg_install() {
+    if is_mac; then
+        brew_install "$@"
+    else
+        apt_install "$@"
+    fi
+}
+
+# Installs global npm packages; Homebrew's node owns its prefix, so no sudo there
+npm_global() {
+    if is_mac; then
+        npm install -g "$@"
+    else
+        sudo npm install -g "$@"
+    fi
 }
 
 # Adds a vendor apt repository signed with the key at key_url, e.g.
@@ -99,6 +133,15 @@ is_installed() {
         "$fn"
     else
         has "$1"
+    fi
+}
+
+is_supported() {
+    local fn="supported_${1//-/_}"
+    if declare -F "$fn" >/dev/null; then
+        "$fn"
+    else
+        return 0
     fi
 }
 
@@ -270,6 +313,7 @@ choose_tools() {
         fi
         local names=() hints=() states=()
         while IFS=$'\t' read -r name desc; do
+            is_supported "$name" || continue
             # Missing tools start ticked
             if is_installed "$name"; then
                 desc="$desc (installed)"
@@ -321,8 +365,13 @@ main() {
         echo "Run this as your own user, not root: it calls sudo where needed." >&2
         exit 1
     fi
-    if ! has apt-get; then
-        echo "This script supports Debian and Ubuntu only (apt-get not found)." >&2
+    if is_mac; then
+        if ! has brew; then
+            echo "Install Homebrew first: https://brew.sh" >&2
+            exit 1
+        fi
+    elif ! has apt-get; then
+        echo "This script supports Debian, Ubuntu and macOS with Homebrew (apt-get not found)." >&2
         exit 1
     fi
     if [ ! -t 0 ] || [ ! -t 1 ]; then
@@ -364,15 +413,20 @@ main() {
     fi
 
     echo "Installing: ${CHOSEN[*]}"
-    echo "Some steps need root; sudo asks for your password once."
-    if ! sudo -v; then
-        echo "sudo is required to install tools." >&2
-        exit 1
+    # Homebrew never needs root; apt does
+    if ! is_mac; then
+        echo "Some steps need root; sudo asks for your password once."
+        if ! sudo -v; then
+            echo "sudo is required to install tools." >&2
+            exit 1
+        fi
     fi
     trap 'echo; exit 130' INT
 
     WORK_DIR=$(mktemp -d)
-    keep_sudo_alive
+    if ! is_mac; then
+        keep_sudo_alive
+    fi
 
     local tool status failed=()
     for tool in "${CHOSEN[@]}"; do
@@ -402,4 +456,7 @@ main() {
     [ ${#failed[@]} -eq 0 ]
 }
 
-main "$@"
+# Sourced by tests for its helpers; run only when executed
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi
