@@ -18,6 +18,13 @@
 
 set -euo pipefail
 
+# The checklist is the only confirmation: Homebrew 7 otherwise asks before every install
+# that brings dependencies. A variable, not --yes, which older Homebrew rejects. Set before
+# the Bash check, so the Homebrew bash install there does not ask either; a HOMEBREW_ASK of
+# the user's would still make older Homebrew ask.
+export HOMEBREW_NO_ASK=1
+unset HOMEBREW_ASK
+
 if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
     { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]; }; then
     # macOS ships Bash 3.2, and `env bash` finds it first outside an interactive shell:
@@ -40,7 +47,7 @@ if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
                 read -r answer || answer=n
                 case "$answer" in
                     [nN]*) ;;
-                    *) HOMEBREW_NO_ASK=1 "$shellmoi_brew" install --quiet bash ;;
+                    *) "$shellmoi_brew" install --quiet bash ;;
                 esac
             fi
             if [ -x "$shellmoi_bash" ]; then
@@ -59,13 +66,22 @@ unset SHELLMOI_REEXEC
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools"
 
+# Homebrew first on macOS, as in ~/.bashrc: path_helper lists it after /bin, so an installer
+# that runs `bash` (SDKMAN's needs Bash 4) would get the system's 3.2, even though this
+# script itself started again under Homebrew's bash
+if [ "$(uname -s)" = Darwin ]; then
+    for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [ -x "$brew" ]; then
+            PATH="${brew%/bin/brew}/bin:${brew%/bin/brew}/sbin:$PATH"
+            break
+        fi
+    done
+    unset brew
+fi
+
 # Where the installers put binaries; on PATH here so new tools are found right away, and
 # so installers that add their directory to ~/.bashrc when it is missing (codex) don't
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
-
-# The checklist is the only confirmation: Homebrew 7 otherwise asks before every install
-# that brings dependencies. A variable, not --yes, which older Homebrew rejects.
-export HOMEBREW_NO_ASK=1
 
 usage() {
     echo "Usage: $0 <tool file or name>..."

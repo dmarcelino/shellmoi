@@ -408,11 +408,15 @@ run_install() {
     check_local_changes
     echo
     echo "Done. Open a new shell to load the configuration."
-    # Only while the clone still uses HTTPS, which cannot push without a token
-    case "$(git -C "$SHELLMOI_DIR" remote get-url origin 2>/dev/null || true)" in
-        https://*)
-            echo "To push changes, switch the clone to SSH:"
-            echo "    git -C $SHELLMOI_DIR remote set-url origin git@github.com:dmarcelino/shellmoi.git"
+    # For a GitHub clone over HTTPS, which pushes only with a token or credential helper:
+    # the same repository over SSH, a fork included
+    local origin
+    origin=$(git -C "$SHELLMOI_DIR" remote get-url origin 2>/dev/null || true)
+    case "$origin" in
+        https://github.com/*)
+            echo "To push over SSH instead of HTTPS, switch the clone's remote:"
+            printf '    git -C %q remote set-url origin git@github.com:%s\n' \
+                "$SHELLMOI_DIR" "${origin#https://github.com/}"
             ;;
     esac
 }

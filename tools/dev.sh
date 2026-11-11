@@ -130,8 +130,9 @@ install_uv() {
 install_sdkman() {
     # macOS ships curl, zip and unzip
     is_mac || apt_install curl zip unzip
-    # rcupdate=false: ~/.bashrc already loads SDKMAN
-    curl -fsSL "https://get.sdkman.io?rcupdate=false" | bash
+    # rcupdate=false: ~/.bashrc already loads SDKMAN. "$BASH", the Bash 4.3+ running this
+    # script: SDKMAN refuses macOS's Bash 3.2, which `bash` may find first on PATH
+    curl -fsSL "https://get.sdkman.io?rcupdate=false" | "$BASH"
 }
 installed_sdkman() { [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; }
 

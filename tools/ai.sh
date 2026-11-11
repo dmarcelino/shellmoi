@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 
 # Claude Code
-install_claude() { curl -fsSL https://claude.ai/install.sh | bash; }
+install_claude() { curl -fsSL https://claude.ai/install.sh | "$BASH"; }
 
 # OpenAI Codex CLI
 install_codex() { curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh; }

@@ -28,6 +28,10 @@ fail() {
 }
 
 # shellcheck source=../install-tools.sh
+# As a user's environment might have them: no HOMEBREW_NO_ASK, so that of the person running
+# the test can't hide a missing one, and a HOMEBREW_ASK, which install-tools.sh must clear
+unset HOMEBREW_NO_ASK
+export HOMEBREW_ASK=1
 . "$repo/install-tools.sh"
 for file in "$repo"/tools/*.sh; do
     # shellcheck source=/dev/null
@@ -69,6 +73,31 @@ expect_tool macOS colima offered
 expect_tool macOS docker-ce hidden
 expect_tool macOS bash offered
 
+## NO HOMEBREW CONFIRMATION ##
+
+# Homebrew only checks that the variable is set
+[ -n "${HOMEBREW_NO_ASK:-}" ] && [ -z "${HOMEBREW_ASK+set}" ] ||
+    fail "install-tools.sh lets Homebrew ask for confirmation after the checklist"
+# Before the Bash check, which may install Homebrew's bash before re-running the script
+export_line=$(grep -n '^export HOMEBREW_NO_ASK=' "$repo/install-tools.sh" | cut -d: -f1)
+check_line=$(grep -n 'BASH_VERSINFO' "$repo/install-tools.sh" | head -n 1 | cut -d: -f1)
+[ -n "$export_line" ] && [ "$export_line" -lt "$check_line" ] ||
+    fail "install-tools.sh sets HOMEBREW_NO_ASK after the Bash check"
+
+## BASH FOR INSTALLERS ##
+
+# Installers piped into a shell get the Bash running install-tools.sh, never `bash` from
+# PATH, which can be macOS's 3.2 (SDKMAN refuses it); sudo's root shell on Linux is fine
+piped=$(grep -nE '\| *bash( |;|$)' "$repo"/tools/*.sh || true)
+[ -z "$piped" ] || fail "installers piped into bash from PATH instead of \"\$BASH\":
+$piped"
+
+# On macOS with Homebrew, install-tools.sh puts Homebrew's bash before /bin/bash
+if [ "$(uname -s)" = Darwin ] && { [ -x /opt/homebrew/bin/brew ] || [ -x /usr/local/bin/brew ]; }; then
+    [ "$(command -v bash)" != /bin/bash ] ||
+        fail "bash on PATH is macOS's 3.2 after loading install-tools.sh"
+fi
+
 ## NO LINUX STEPS ON MACOS ##
 
 calls=$work/calls
@@ -78,9 +107,6 @@ record() { echo "$*" >> "$calls"; }
 # Records each call; brew --prefix answers like Homebrew on Apple silicon
 brew() {
     record brew "$@"
-    if [ "${HOMEBREW_NO_ASK:-}" != 1 ]; then
-        record "brew without HOMEBREW_NO_ASK: $*"
-    fi
     if [ "$1" = --prefix ]; then
         echo /opt/homebrew
     fi
@@ -111,10 +137,6 @@ done < <(supported_tools)
 linux_steps=$(grep -E '^(apt_install|add_apt_source|deb_arch|os_codename|link_local|gh_latest|enter_tmp|sudo|dpkg|cargo) ' "$calls" || true)
 [ -z "$linux_steps" ] || fail "macOS installs took Linux steps:
 $linux_steps"
-
-asking=$(grep '^brew without HOMEBREW_NO_ASK' "$calls" || true)
-[ -z "$asking" ] || fail "brew would ask for confirmation after the checklist:
-$asking"
 
 expect_call() {
     grep -qxF "$1" "$calls" || fail "macOS installs did not run: $1"
