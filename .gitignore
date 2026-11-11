@@ -1,2 +1,5 @@
 .viminfo
 .bashrc.local
+
+# WezTerm hosts and usernames; see .config/wezterm/wezterm_private.example.lua
+.config/wezterm/wezterm_private.lua
