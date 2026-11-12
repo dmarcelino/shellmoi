@@ -12,12 +12,72 @@
 # Each tool file defines one function per tool, with a "# description" line above it:
 #   install_<tool>     installs it (hyphens in <tool> become underscores)
 #   installed_<tool>   optional check; the default is `command -v <tool>`
+#   supported_<tool>   optional check; false hides the tool on this system
 # A tool installs what it needs first with `ensure <other-tool>`.
-# Debian and Ubuntu only.
+# Debian, Ubuntu and macOS (Homebrew). Needs Bash 4.3 or later.
 
 set -euo pipefail
 
+# The checklist is the only confirmation: Homebrew 7 otherwise asks before every install
+# that brings dependencies. A variable, not --yes, which older Homebrew rejects. Set before
+# the Bash check, so the Homebrew bash install there does not ask either; a HOMEBREW_ASK of
+# the user's would still make older Homebrew ask.
+export HOMEBREW_NO_ASK=1
+unset HOMEBREW_ASK
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
+    { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]; }; then
+    # macOS ships Bash 3.2, and `env bash` finds it first outside an interactive shell:
+    # start again under Homebrew's bash, offering to install it. Only when run, not when
+    # sourced, which would restart the caller. Bash 3.2-safe up to exec.
+    if [ "$(uname -s)" = Darwin ] && [ -z "${SHELLMOI_REEXEC:-}" ] &&
+        [ "${BASH_SOURCE[0]}" = "$0" ]; then
+        shellmoi_brew=""
+        for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+            if [ -x "$candidate" ]; then
+                shellmoi_brew=$candidate
+                break
+            fi
+        done
+        if [ -n "$shellmoi_brew" ]; then
+            shellmoi_bash="$("$shellmoi_brew" --prefix)/bin/bash"
+            if [ ! -x "$shellmoi_bash" ] && [ -t 0 ]; then
+                echo "This script needs Bash 4.3 or later; this is $BASH_VERSION."
+                printf 'Install Bash from Homebrew now? [Y/n] '
+                read -r answer || answer=n
+                case "$answer" in
+                    [nN]*) ;;
+                    *) "$shellmoi_brew" install --quiet bash ;;
+                esac
+            fi
+            if [ -x "$shellmoi_bash" ]; then
+                export SHELLMOI_REEXEC=1
+                exec "$shellmoi_bash" "$0" "$@"
+            fi
+        fi
+    fi
+    echo "This script needs Bash 4.3 or later; this is $BASH_VERSION." >&2
+    if [ "$(uname -s)" = Darwin ]; then
+        echo "Install it with Homebrew (https://brew.sh): brew install bash" >&2
+    fi
+    exit 1
+fi
+unset SHELLMOI_REEXEC
+
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools"
+
+# Homebrew first on macOS, as in ~/.bashrc: path_helper lists it after /bin, so an installer
+# that runs `bash` (SDKMAN's needs Bash 4) would get the system's 3.2, even though this
+# script itself started again under Homebrew's bash
+if [ "$(uname -s)" = Darwin ]; then
+    for brew in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [ -x "$brew" ]; then
+            PATH="${brew%/bin/brew}/bin:${brew%/bin/brew}/sbin:$PATH"
+            break
+        fi
+    done
+    unset brew
+fi
 
 # Where the installers put binaries; on PATH here so new tools are found right away, and
 # so installers that add their directory to ~/.bashrc when it is missing (codex) don't
@@ -40,6 +100,10 @@ has() {
     command -v "$1" >/dev/null 2>&1
 }
 
+is_mac() {
+    [ "$(uname -s)" = Darwin ]
+}
+
 # Debian architecture name: amd64 or arm64
 deb_arch() {
     dpkg --print-architecture
@@ -59,7 +123,7 @@ gh_latest() {
 
 # Changes to a new empty directory for downloads; removed when the script exits
 enter_tmp() {
-    cd "$(mktemp -d -p "$WORK_DIR")"
+    cd "$(mktemp -d "$WORK_DIR/tmp.XXXXXX")"
 }
 
 apt_install() {
@@ -68,6 +132,28 @@ apt_install() {
         touch "$WORK_DIR/apt-updated"
     fi
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q "$@"
+}
+
+brew_install() {
+    brew install --quiet "$@"
+}
+
+# Installs packages that have the same name in apt and Homebrew
+pkg_install() {
+    if is_mac; then
+        brew_install "$@"
+    else
+        apt_install "$@"
+    fi
+}
+
+# Installs global npm packages; Homebrew's node owns its prefix, so no sudo there
+npm_global() {
+    if is_mac; then
+        npm install -g "$@"
+    else
+        sudo npm install -g "$@"
+    fi
 }
 
 # Adds a vendor apt repository signed with the key at key_url, e.g.
@@ -99,6 +185,15 @@ is_installed() {
         "$fn"
     else
         has "$1"
+    fi
+}
+
+is_supported() {
+    local fn="supported_${1//-/_}"
+    if declare -F "$fn" >/dev/null; then
+        "$fn"
+    else
+        return 0
     fi
 }
 
@@ -270,6 +365,7 @@ choose_tools() {
         fi
         local names=() hints=() states=()
         while IFS=$'\t' read -r name desc; do
+            is_supported "$name" || continue
             # Missing tools start ticked
             if is_installed "$name"; then
                 desc="$desc (installed)"
@@ -321,8 +417,13 @@ main() {
         echo "Run this as your own user, not root: it calls sudo where needed." >&2
         exit 1
     fi
-    if ! has apt-get; then
-        echo "This script supports Debian and Ubuntu only (apt-get not found)." >&2
+    if is_mac; then
+        if ! has brew; then
+            echo "Install Homebrew first: https://brew.sh" >&2
+            exit 1
+        fi
+    elif ! has apt-get; then
+        echo "This script supports Debian, Ubuntu and macOS with Homebrew (apt-get not found)." >&2
         exit 1
     fi
     if [ ! -t 0 ] || [ ! -t 1 ]; then
@@ -364,15 +465,20 @@ main() {
     fi
 
     echo "Installing: ${CHOSEN[*]}"
-    echo "Some steps need root; sudo asks for your password once."
-    if ! sudo -v; then
-        echo "sudo is required to install tools." >&2
-        exit 1
+    # Homebrew never needs root; apt does
+    if ! is_mac; then
+        echo "Some steps need root; sudo asks for your password once."
+        if ! sudo -v; then
+            echo "sudo is required to install tools." >&2
+            exit 1
+        fi
     fi
     trap 'echo; exit 130' INT
 
     WORK_DIR=$(mktemp -d)
-    keep_sudo_alive
+    if ! is_mac; then
+        keep_sudo_alive
+    fi
 
     local tool status failed=()
     for tool in "${CHOSEN[@]}"; do
@@ -402,4 +508,7 @@ main() {
     [ ${#failed[@]} -eq 0 ]
 }
 
-main "$@"
+# Sourced by tests for its helpers; run only when executed
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main "$@"
+fi

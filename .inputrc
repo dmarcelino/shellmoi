@@ -1,2 +1,6 @@
+# A ~/.inputrc replaces /etc/inputrc, which holds Debian's Home, End and Ctrl+arrow keys;
+# readline skips the include quietly where there is none, as on macOS
+$include /etc/inputrc
+
 "\e[A": history-search-backward
 "\e[B": history-search-forward

@@ -1,29 +1,71 @@
-# ~/.bashrc: executed by bash(1) for interactive non-login shells.
+# ~/.bashrc: executed by bash(1) for interactive non-login shells, and by ~/.bash_profile.
 
-# If not running interactively, don't do anything
-case $- in
-    *i*) ;;
-      *) return;;
-esac
+# Tells ~/.bash_profile this file already ran
+SHELLMOI_BASHRC=1
 
 ## PATH ##
 
-# Tool and private bin directories, if they exist; ~/.local/bin ends up first
-for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOME/.local/bin"; do
-    if [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]]; then
-        PATH="$dir:$PATH"
-    fi
-done
-unset dir
+# Set before the interactive check below, so non-interactive shells (bash -lc from IDEs and
+# agents, ssh commands on Debian) find the same tools as an interactive one
 
-# Homebrew (macOS or Linux), if installed
+# Moves the directory to the front of PATH, removing any other copy of it
+_shellmoi_path_prepend() {
+    local path=":$PATH:"
+    while [[ $path == *":$1:"* ]]; do
+        path=${path//":$1:"/:}
+    done
+    path=${path#:}
+    path=${path%:}
+    PATH="$1${path:+:$path}"
+}
+
+# Removes repeated PATH entries, keeping the first, such as those an inherited PATH brings
+_shellmoi_path_dedupe() {
+    local rest="$PATH:" dir new=":"
+    while [ -n "$rest" ]; do
+        dir=${rest%%:*}
+        rest=${rest#*:}
+        if [ -n "$dir" ] && [[ $new != *":$dir:"* ]]; then
+            new="$new$dir:"
+        fi
+    done
+    new=${new#:}
+    PATH=${new%:}
+}
+
+# Homebrew (macOS or Linux), if installed; before the directories below, which go in front.
+# On macOS, path_helper puts Homebrew after /bin in login shells, where /bin/bash is 3.2.
+# Its full environment (HOMEBREW_PREFIX, MANPATH) only in interactive shells, once: running
+# brew for every ssh command, scp or agent's bash -lc would slow them all down.
 for brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
     if [ -x "$brew" ]; then
-        eval "$("$brew" shellenv bash)"
+        if [[ $- == *i* ]] && [ -z "${HOMEBREW_PREFIX:-}" ]; then
+            eval "$("$brew" shellenv bash)"
+        fi
+        _shellmoi_path_prepend "${brew%/bin/brew}/sbin"
+        _shellmoi_path_prepend "${brew%/bin/brew}/bin"
         break
     fi
 done
 unset brew
+
+# Tool and private bin directories, if they exist; ~/.local/bin ends up first, even when
+# path_helper (macOS login shells, tmux) moved it behind the system directories
+for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOME/.local/bin"; do
+    if [ -d "$dir" ]; then
+        _shellmoi_path_prepend "$dir"
+    fi
+done
+unset dir
+_shellmoi_path_dedupe
+unset -f _shellmoi_path_prepend _shellmoi_path_dedupe
+export PATH
+
+# If not running interactively, don't do anything more
+case $- in
+    *i*) ;;
+      *) return;;
+esac
 
 ## DEFAULTS ##
 
@@ -36,9 +78,32 @@ if ! shopt -oq posix && [ -z "${BASH_COMPLETION_VERSINFO:-}" ]; then
     fi
 fi
 
+# git completion for Apple's git, which keeps it where bash-completion does not look;
+# Homebrew's git ships its own. The files first: they only exist on macOS.
+for git_completion in \
+    /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash \
+    /Applications/Xcode.app/Contents/Developer/usr/share/git-core/git-completion.bash; do
+    if [ -f "$git_completion" ]; then
+        if [ "$(command -v git)" = /usr/bin/git ]; then
+            . "$git_completion"
+        fi
+        break
+    fi
+done
+unset git_completion
+
 # Saner history, tab completion and directory navigation
 if [ -f ~/.config/bash/sensible/sensible.bash ]; then
+    # bash-sensible replaces PROMPT_COMMAND; keep what was there, such as the hook macOS
+    # Terminal uses to open new tabs in the same folder
+    prompt_command=${PROMPT_COMMAND:-}
+    prompt_command=${prompt_command#history -a}
+    prompt_command=${prompt_command#; }
     . ~/.config/bash/sensible/sensible.bash
+    if [ -n "$prompt_command" ]; then
+        PROMPT_COMMAND="$PROMPT_COMMAND; $prompt_command"
+    fi
+    unset prompt_command
 fi
 
 # make less more friendly for non-text input files, see lesspipe(1)
@@ -88,6 +153,17 @@ fi
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+# fzf key bindings: Ctrl-R searches history, Ctrl-T picks files, Alt-C changes folder.
+# fzf before 0.48 (older apt versions) has no --bash; Debian ships the bindings as a file.
+if command -v fzf >/dev/null 2>&1; then
+    if fzf_init=$(fzf --bash 2>/dev/null) && [ -n "$fzf_init" ]; then
+        eval "$fzf_init"
+    elif [ -f /usr/share/doc/fzf/examples/key-bindings.bash ]; then
+        . /usr/share/doc/fzf/examples/key-bindings.bash
+    fi
+    unset fzf_init
+fi
 
 # worktrunk shell integration, so `wt switch` can change directory
 if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init bash)"; fi

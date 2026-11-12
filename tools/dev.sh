@@ -6,19 +6,22 @@ NODE_MAJOR=24
 
 # GitHub CLI
 install_gh() {
+    if is_mac; then brew_install gh; return; fi
     add_apt_source github-cli https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         "https://cli.github.com/packages stable main"
     apt_install gh
 }
 
 # Large file storage for git; the git config expects it
-install_git_lfs() { apt_install git-lfs; }
+install_git_lfs() { pkg_install git-lfs; }
 
 # Finds bugs in shell scripts
-install_shellcheck() { apt_install shellcheck; }
+install_shellcheck() { pkg_install shellcheck; }
 
-# Finds secrets in git history and files; from GitHub, as the apt package lags far behind
+# Finds secrets in git history and files
 install_gitleaks() {
+    # On Linux from GitHub, as the apt package lags far behind
+    if is_mac; then brew_install gitleaks; return; fi
     local version arch
     version=$(gh_latest gitleaks/gitleaks)
     version=${version#v}
@@ -40,22 +43,49 @@ install_docker_ce() {
     sudo usermod -aG docker "$USER"
 }
 installed_docker_ce() { has docker; }
+supported_docker_ce() { ! is_mac; }
+
+# Docker on macOS: the docker CLI with Compose and Buildx, in a Colima VM started at login
+install_colima() {
+    brew_install colima docker docker-compose docker-buildx
+    docker_plugin_dirs
+    brew services start colima
+}
+supported_colima() { is_mac; }
+
+# Lets docker find the Compose and Buildx plugins Homebrew installs
+docker_plugin_dirs() {
+    local config="$HOME/.docker/config.json" dir
+    dir="$(brew --prefix)/lib/docker/cli-plugins"
+    mkdir -p "$HOME/.docker"
+    if [ ! -s "$config" ]; then
+        printf '{\n  "cliPluginsExtraDirs": ["%s"]\n}\n' "$dir" > "$config"
+        return
+    fi
+    ensure jq
+    jq --arg dir "$dir" '.cliPluginsExtraDirs = ((.cliPluginsExtraDirs // []) - [$dir] + [$dir])' \
+        "$config" > "$config.new"
+    mv "$config.new" "$config"
+}
 
 # Rust toolchain installer: rustc, cargo
 install_rustup() {
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 }
 
-# Git worktree manager (wt); built from source with cargo
+# Git worktree manager (wt)
 install_worktrunk() {
+    # Not `wt config shell install`: ~/.bashrc already loads the shell integration
+    if is_mac; then brew_install worktrunk; return; fi
     ensure rustup
     apt_install build-essential
     cargo install worktrunk
 }
 installed_worktrunk() { has wt; }
 
-# Go, into /usr/local/go
+# Go
 install_go() {
+    if is_mac; then brew_install go; return; fi
     local version
     version=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n 1)
     enter_tmp
@@ -64,24 +94,45 @@ install_go() {
     sudo tar -C /usr/local -xzf "$version.linux-$(deb_arch).tar.gz"
 }
 
-# Node.js and npm, from NodeSource
+# Node.js and npm
 install_node() {
+    if is_mac; then
+        # Versioned formulae are keg-only: link it so node and npm are on PATH
+        brew_install "node@$NODE_MAJOR"
+        brew link --force "node@$NODE_MAJOR"
+        return
+    fi
     curl -fsSL "https://deb.nodesource.com/setup_$NODE_MAJOR.x" | sudo -E bash -
     apt_install nodejs
 }
 
 # Python 3 with pip and venv
-install_python() { apt_install python3 python3-pip python3-venv; }
-installed_python() { dpkg -s python3-pip python3-venv >/dev/null 2>&1; }
+install_python() {
+    if is_mac; then brew_install python; return; fi
+    apt_install python3 python3-pip python3-venv
+}
+installed_python() {
+    if is_mac; then
+        # Not /usr/bin/python3: that is the Xcode Command Line Tools stub
+        [ -x "$(brew --prefix)/bin/python3" ]
+    else
+        dpkg -s python3-pip python3-venv >/dev/null 2>&1
+    fi
+}
 
 # Fast Python package and project manager
-install_uv() { curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh; }
+install_uv() {
+    if is_mac; then brew_install uv; return; fi
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+}
 
 # SDK manager for Java, Maven, Gradle
 install_sdkman() {
-    apt_install curl zip unzip
-    # rcupdate=false: ~/.bashrc already loads SDKMAN
-    curl -fsSL "https://get.sdkman.io?rcupdate=false" | bash
+    # macOS ships curl, zip and unzip
+    is_mac || apt_install curl zip unzip
+    # rcupdate=false: ~/.bashrc already loads SDKMAN. "$BASH", the Bash 4.3+ running this
+    # script: SDKMAN refuses macOS's Bash 3.2, which `bash` may find first on PATH
+    curl -fsSL "https://get.sdkman.io?rcupdate=false" | "$BASH"
 }
 installed_sdkman() { [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; }
 
