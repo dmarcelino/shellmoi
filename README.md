@@ -172,6 +172,12 @@ and SDKMAN's versions of node and java, still needs an interactive shell. Debian
 `~/.profile` adds `~/bin` and `~/.local/bin` again after `.bashrc` runs, so a login shell
 there can list them twice.
 
+The locale is set there too, but only when none is: SSH from Windows sends no `LANG`, and
+in the C locale tmux draws every non-ASCII character as `_`. Such a session gets
+`en_US.UTF-8`, or `C.UTF-8` on a host without it; a terminal that sends its own locale
+keeps it. A tmux server started before keeps the C locale until `tmux kill-server`.
+`tests/locale_test.sh` checks this.
+
 A command run over SSH, such as `ssh mac-box claude`, starts a non-interactive shell that
 reads none of these files on macOS, so `PATH` is the system's. Run it in a login shell
 instead: `ssh mac-box bash -lc claude`.
