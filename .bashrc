@@ -61,6 +61,23 @@ _shellmoi_path_dedupe
 unset -f _shellmoi_path_prepend _shellmoi_path_dedupe
 export PATH
 
+## LOCALE ##
+
+# SSH from Windows sends no locale, so the shell, and any tmux it starts, falls back to C;
+# tmux then draws every non-ASCII character as "_". Fill one in only when none is set, so
+# terminals that send their own keep it. Only a locale this host has, or bash warns.
+if [ -z "${LC_ALL:-}${LC_CTYPE:-}${LANG:-}" ]; then
+    available=$(locale -a 2>/dev/null)
+    for candidate in en_US.UTF-8 C.UTF-8; do
+        # locale -a spells them en_US.utf8 / C.utf8 on most Linux systems
+        if grep -qix "${candidate%%.*}\.utf-\?8" <<<"$available"; then
+            export LANG=$candidate
+            break
+        fi
+    done
+    unset available candidate
+fi
+
 # If not running interactively, don't do anything more
 case $- in
     *i*) ;;
