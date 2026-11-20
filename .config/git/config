@@ -6,8 +6,21 @@
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
 	required = true
+[init]
+	defaultBranch = main
+[help]
+	# A mistyped command such as `git pul` offers the closest one
+	autocorrect = prompt
+[fetch]
+	# Drop remote-tracking branches deleted on the remote
+	prune = true
+[pull]
+	# Replay unpushed local commits on top of the remote instead of merging
+	rebase = true
 [push]
 	autoSetupRemote = true
+	# Push annotated tags that point at the pushed commits
+	followTags = true
 [core]
 	# diff-so-fancy when installed, plain less otherwise
 	pager = "if command -v diff-so-fancy >/dev/null; then diff-so-fancy; else cat; fi | less --tabs=4 -RFX"
