@@ -21,3 +21,7 @@ repository's own public URL, which `install.sh` and the README need.
 Keep machine-specific or private values out of tracked files: read them from environment
 variables or from a local, untracked file that the tracked config sources if present.
 Before committing, review the diff for anything on the list above.
+
+`private/` holds the owner's private profiles and is ignored by git. Never read it, and
+never quote or copy anything from it into tracked files, commit messages or pull
+requests. Tests make their own profiles in a temporary folder.

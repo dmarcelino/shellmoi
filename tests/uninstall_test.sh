@@ -14,23 +14,8 @@ trap 'rm -rf "$work"' EXIT
 home=$work/home
 clone=$work/clone
 
-fail() {
-    echo "FAIL: $*" >&2
-    exit 1
-}
-
-# Lists every path under the fake home with its link target or checksum
-snapshot() {
-    (cd "$home" && find . -mindepth 1 | LC_ALL=C sort | while IFS= read -r path; do
-        if [ -L "$path" ]; then
-            echo "$path -> $(readlink "$path")"
-        elif [ -d "$path" ]; then
-            echo "$path/"
-        else
-            echo "$path $(cksum < "$path")"
-        fi
-    done)
-}
+# shellcheck source=lib.sh
+. "$repo/tests/lib.sh"
 
 shellmoi() {
     HOME=$home SHELLMOI_DIR=$clone bash "$repo/install.sh" "$@" > "$work/out" 2>&1 ||
@@ -38,14 +23,6 @@ shellmoi() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "this test needs jq, which merges the Claude settings"
-
-expect_same() {
-    local label=$1 expected=$2 actual=$3
-    if [ "$expected" != "$actual" ]; then
-        diff <(echo "$expected") <(echo "$actual") >&2 || true
-        fail "$label"
-    fi
-}
 
 git clone --quiet "$repo" "$clone"
 skill=$(cd "$clone/.codex/skills" && ls | head -n 1)
@@ -62,10 +39,17 @@ echo '{"theme": "mine"}' > "$home/.claude/settings.json"
 ln -s "$home/elsewhere/$skill" "$home/.claude/skills/$skill"
 ln -s "$home/elsewhere/$skill" "$home/.codex/skills/other"
 
-before=$(snapshot)
+before=$(snapshot "$home")
 
 shellmoi
+# An update while the clone has local changes, as when an installer appended to ~/.bashrc:
+# the pull must not rebase, which the linked git config (pull.rebase) would otherwise do
+cp "$clone/.inputrc" "$work/inputrc"
+echo '# appended by an installer' >> "$clone/.inputrc"
 shellmoi
+grep -q "These files in $clone have local changes" "$work/out" ||
+    fail "install did not list the clone's local changes"
+cp "$work/inputrc" "$clone/.inputrc"
 [ -L "$home/.bashrc" ] || fail "install did not link ~/.bashrc"
 
 # The Claude settings that were there are merged with shellmoi's, and theirs win
@@ -85,7 +69,7 @@ sleep 1  # backups are stamped to the second
 shellmoi
 
 shellmoi uninstall
-after=$(snapshot)
+after=$(snapshot "$home")
 
 newer_backups=$(cd "$home" && ls -d .inputrc.bak.* 2>/dev/null || true)
 [ "$(echo "$newer_backups" | wc -l)" -eq 1 ] && [ -n "$newer_backups" ] ||
@@ -99,7 +83,7 @@ expect_same "uninstall did not restore the home as it was" \
     "$before" "$(echo "$after" | grep -v "^\./$newer_backups ")"
 
 shellmoi uninstall
-expect_same "a second uninstall changed the home" "$after" "$(snapshot)"
+expect_same "a second uninstall changed the home" "$after" "$(snapshot "$home")"
 
 ## CLAUDE SETTINGS CHANGED AFTER THE MERGE ##
 

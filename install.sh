@@ -15,6 +15,15 @@ BACKUP_SUFFIX=".bak.$(date +%Y%m%d-%H%M%S)"
 # Matches the timestamp in BACKUP_SUFFIX only, not backups other tools made
 BACKUP_STAMP_GLOB='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]'
 GITCONFIG_HEADER="# Machine-specific git settings: user.name, user.email, credential helpers"
+# Private profiles: one folder each, laid out like $HOME; git ignores the folder
+PRIVATE_DIR="$SHELLMOI_DIR/private"
+GIT_PROFILES=".config/git/profiles.gitconfig"
+GIT_PROFILES_HEADER="# Written by shellmoi's install.sh from ~/.config/git/profiles/; do not edit"
+SSH_CONFIG_CONTENT="# Written by shellmoi's install.sh: loads the private profiles' SSH settings
+Include config.d/*.conf"
+# What install linked from the profiles, one home-relative path per line, so a later
+# install or uninstall finds links to files a profile no longer has
+PRIVATE_LINKS="$HOME/.local/state/shellmoi/private-links"
 
 # Prints the command that installs a package on this system
 pkg_install_hint() {
@@ -48,7 +57,9 @@ clone_or_update() {
     if [ -d "$SHELLMOI_DIR/.git" ]; then
         if git -C "$SHELLMOI_DIR" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
             echo "Updating $SHELLMOI_DIR"
-            git -C "$SHELLMOI_DIR" pull --ff-only --quiet
+            # --no-rebase: a pull.rebase setting, such as shellmoi's own, would otherwise
+            # rebase, which stops when the clone has local changes
+            git -C "$SHELLMOI_DIR" pull --no-rebase --ff-only --quiet
         else
             echo "Using $SHELLMOI_DIR as is (its branch has no upstream to pull from)"
         fi
@@ -76,12 +87,28 @@ copy_once() {
 # Links the target to the source, moving anything else at that path to a backup
 # (by default next to the target; pass a home-relative backup path to put it elsewhere)
 link() {
-    local src=$1 target=$2 file=$3 backup=${4:-$3$BACKUP_SUFFIX}
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$src" ]; then
-        echo "  up to date     ~/$file"
-        return
+    local src=$1 target=$2 file=$3 backup=${4:-$3$BACKUP_SUFFIX} current
+    if [ -L "$target" ]; then
+        current=$(readlink "$target")
+        if [ "$current" = "$src" ]; then
+            echo "  up to date     ~/$file"
+            return
+        fi
+        # Another link into the clone, such as a profile's file after a rename: shellmoi's,
+        # not the user's, so replaced rather than backed up
+        if [ "${current#"$SHELLMOI_DIR"/}" != "$current" ]; then
+            rm "$target"
+            ln -s "$src" "$target"
+            echo "  relinked       ~/$file"
+            return
+        fi
     fi
     if [ -e "$target" ] || [ -L "$target" ]; then
+        # Never over an earlier backup, which may hold the only copy of the user's file
+        if [ -e "$HOME/$backup" ] || [ -L "$HOME/$backup" ]; then
+            echo "  kept           ~/$file (~/$backup is taken; run the install again)"
+            return
+        fi
         mkdir -p "$(dirname "$HOME/$backup")"
         mv "$target" "$HOME/$backup"
         echo "  backed up      ~/$file -> ~/$backup"
@@ -95,7 +122,7 @@ managed_files() {
     local file
     while IFS= read -r -d '' file; do
         case "$file" in
-            README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh) continue ;;
+            README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh|push.sh) continue ;;
             install-tools.sh|tools/*|tests/*) continue ;;
             .claude/skills|.codex/skills/*) continue ;;  # see deploy_skills
         esac
@@ -208,6 +235,180 @@ deploy_skills() {
                 "$tool/skills$BACKUP_SUFFIX/$name"
         done
     done < <(skill_names)
+}
+
+# Prints, NUL-separated, each file of the private profiles as <profile>/<home-relative path>,
+# profiles in name order. Dot-folders such as .git and .backups are not profiles, and the
+# leftovers of Finder and editors are not files of them (push.sh skips the same).
+private_files() {
+    local dir
+    for dir in "$PRIVATE_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        dir=${dir%/}
+        (cd "$dir" && find . \( -name .git -o -name .DS_Store -o -name '*~' -o -name '.*.sw?' \) \
+            -prune -o \( -type f -o -type l \) -print0) |
+            while IFS= read -r -d '' file; do
+                printf '%s/%s\0' "${dir##*/}" "${file#./}"
+            done
+    done
+}
+
+# Prints, NUL-separated, <action>:<profile>/<home-relative path> for each file of the
+# profiles. The action is "link", or "shellmoi" for a path shellmoi links itself, or "taken"
+# for a file an earlier profile has: profiles add files of their own, such as
+# ~/.bashrc.d/<profile>.sh, and never replace shellmoi's.
+private_links() {
+    local entry file name managed=$'\n' skills seen=$'\n'
+    while IFS= read -r -d '' file; do
+        managed="$managed$file"$'\n'
+    done < <(managed_files)
+    skills=$'\n'"$(skill_names)"$'\n'
+    while IFS= read -r -d '' entry; do
+        file=${entry#*/}
+        name=
+        case "$file" in
+            .claude/skills/*|.codex/skills/*)
+                name=${file#*/skills/}
+                name=${name%%/*}
+                ;;
+        esac
+        if [[ $managed == *$'\n'"$file"$'\n'* ]] ||
+            { [ -n "$name" ] && [[ $skills == *$'\n'"$name"$'\n'* ]]; }; then
+            printf 'shellmoi:%s\0' "$entry"
+        elif [[ $seen == *$'\n'"$file"$'\n'* ]]; then
+            printf 'taken:%s\0' "$entry"
+        else
+            seen="$seen$file"$'\n'
+            printf 'link:%s\0' "$entry"
+        fi
+    done < <(private_files)
+}
+
+# Undoes the link of a profile's file: removes it if it still points into the profiles, and
+# puts back what it replaced
+unlink_private() {
+    local file=$1 current
+    if [ -L "$HOME/$file" ]; then
+        current=$(readlink "$HOME/$file")
+        if [ "${current#"$PRIVATE_DIR"/}" != "$current" ]; then
+            unlink_restore "$current" "$file"
+            return
+        fi
+    fi
+    if [ -e "$HOME/$file" ] || [ -L "$HOME/$file" ]; then
+        echo "  kept           ~/$file (not a shellmoi link)"
+    fi
+}
+
+# Links each file of the private profiles into $HOME, then unlinks what an earlier install
+# linked from a file the profiles no longer have, such as one removed or renamed
+deploy_private() {
+    local record entry file linked=$'\n'
+    [ -d "$PRIVATE_DIR" ] || [ -s "$PRIVATE_LINKS" ] || return 0
+    echo "Installing the private profiles in $PRIVATE_DIR"
+    while IFS= read -r -d '' record; do
+        entry=${record#*:}
+        file=${entry#*/}
+        case "${record%%:*}" in
+            shellmoi)
+                echo "  skipped        ~/$file of profile ${entry%%/*} (shellmoi links it)"
+                continue
+                ;;
+            taken)
+                echo "  skipped        ~/$file of profile ${entry%%/*} (an earlier profile has it)"
+                continue
+                ;;
+        esac
+        case "$file" in
+            .ssh/*) [ -d "$HOME/.ssh" ] || mkdir -m 700 "$HOME/.ssh" ;;
+        esac
+        mkdir -p "$(dirname "$HOME/$file")"
+        link "$PRIVATE_DIR/$entry" "$HOME/$file" "$file"
+        linked="$linked$file"$'\n'
+    done < <(private_links)
+    if [ -f "$PRIVATE_LINKS" ]; then
+        while IFS= read -r file; do
+            if [[ $linked != *$'\n'"$file"$'\n'* ]]; then
+                unlink_private "$file"
+            fi
+        done < "$PRIVATE_LINKS"
+    fi
+    linked=${linked#$'\n'}
+    if [ -n "$linked" ]; then
+        mkdir -p "$(dirname "$PRIVATE_LINKS")"
+        printf '%s' "$linked" > "$PRIVATE_LINKS"
+    elif [ -e "$PRIVATE_LINKS" ]; then
+        rm "$PRIVATE_LINKS"
+        remove_empty_dirs "$(dirname "$PRIVATE_LINKS")"
+    fi
+}
+
+# Writes ~/.config/git/profiles.gitconfig, which the shared git config includes: git cannot
+# include a folder, so it lists each file in ~/.config/git/profiles/
+write_git_profiles() {
+    local file includes="" target="$HOME/$GIT_PROFILES"
+    for file in "$HOME"/.config/git/profiles/*.gitconfig; do
+        if [ -e "$file" ]; then
+            includes="$includes[include]"$'\n'"	path = profiles/${file##*/}"$'\n'
+        fi
+    done
+    if [ -e "$target" ] && [ "$(head -n 1 "$target")" != "$GIT_PROFILES_HEADER" ]; then
+        echo "  kept existing  ~/$GIT_PROFILES (not written by shellmoi)"
+    elif [ -z "$includes" ]; then
+        remove_git_profiles
+    elif [ "$(cat "$target" 2>/dev/null)" = "$GIT_PROFILES_HEADER"$'\n'"${includes%$'\n'}" ]; then
+        echo "  up to date     ~/$GIT_PROFILES"
+    else
+        printf '%s\n%s' "$GIT_PROFILES_HEADER" "$includes" > "$target"
+        echo "  wrote          ~/$GIT_PROFILES"
+    fi
+}
+
+# Removes ~/.config/git/profiles.gitconfig if shellmoi wrote it
+remove_git_profiles() {
+    local target="$HOME/$GIT_PROFILES"
+    if [ -f "$target" ] && [ "$(head -n 1 "$target")" = "$GIT_PROFILES_HEADER" ]; then
+        rm "$target"
+        echo "  removed        ~/$GIT_PROFILES"
+        remove_empty_dirs "$(dirname "$target")"
+    fi
+}
+
+# The profiles' SSH settings are in ~/.ssh/config.d/<profile>.conf, which ~/.ssh/config must
+# include. Creates ~/.ssh/config if it is missing; never edits one that is there.
+ensure_ssh_include() {
+    local config="$HOME/.ssh/config"
+    [ -d "$HOME/.ssh/config.d" ] || return 0
+    if [ ! -e "$config" ] && [ ! -L "$config" ]; then
+        (umask 077 && printf '%s\n' "$SSH_CONFIG_CONTENT" > "$config")
+        echo "  created        ~/.ssh/config (includes ~/.ssh/config.d/*.conf)"
+    elif ! has_ssh_include "$config"; then
+        echo
+        echo "~/.ssh/config does not load the private profiles' SSH settings. Add this line"
+        echo "at its top, before any Host or Match:"
+        echo "    Include config.d/*.conf"
+    fi
+}
+
+# Whether the SSH config includes config.d/ before its first Host or Match: inside a Host
+# or Match block, an Include applies to that block only
+has_ssh_include() {
+    awk '
+        { keyword = tolower($1) }
+        keyword == "host" || keyword == "match" { exit }
+        keyword == "include" && /config\.d\// { found = 1; exit }
+        END { exit !found }
+    ' "$1" 2>/dev/null
+}
+
+# Removes ~/.ssh/config if it still holds only what ensure_ssh_include wrote
+remove_ssh_include() {
+    local config="$HOME/.ssh/config"
+    if [ -f "$config" ] && [ ! -L "$config" ] && [ "$(cat "$config")" = "$SSH_CONFIG_CONTENT" ]; then
+        rm "$config"
+        echo "  removed        ~/.ssh/config"
+        remove_empty_dirs "$HOME/.ssh"
+    fi
 }
 
 # Without ~/.gitconfig, `git config --global` writes to ~/.config/git/config, which is a
@@ -326,6 +527,18 @@ undeploy() {
     done < <(managed_files)
 }
 
+# Undoes deploy_private, from what it recorded: also the links to files the profiles no
+# longer have
+undeploy_private() {
+    local file
+    [ -f "$PRIVATE_LINKS" ] || return 0
+    while IFS= read -r file; do
+        unlink_private "$file"
+    done < "$PRIVATE_LINKS"
+    rm "$PRIVATE_LINKS"
+    remove_empty_dirs "$(dirname "$PRIVATE_LINKS")"
+}
+
 undeploy_skills() {
     local name tool file
     while IFS= read -r name; do
@@ -401,7 +614,10 @@ run_install() {
     clone_or_update
     deploy
     deploy_skills
+    deploy_private
+    write_git_profiles
     ensure_local_gitconfig
+    ensure_ssh_include
     check_login_shell
     check_bash_completion
     check_diff_so_fancy
@@ -431,10 +647,16 @@ run_uninstall() {
     echo "Uninstalling from $HOME"
     undeploy_skills
     undeploy
+    undeploy_private
+    remove_git_profiles
+    remove_ssh_include
     remove_local_gitconfig
     echo
     echo "Done. Open a new shell to load your previous configuration."
     echo "The clone stays in $SHELLMOI_DIR; delete it if you no longer need it."
+    if [ -d "$PRIVATE_DIR" ]; then
+        echo "It holds your private profiles in $PRIVATE_DIR: deleting the clone deletes them."
+    fi
 }
 
 main() {
