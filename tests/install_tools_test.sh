@@ -147,6 +147,7 @@ expect_call "brew install --quiet hashicorp/tap/terraform"
 expect_call "brew install --quiet colima docker docker-compose docker-buildx"
 expect_call "brew services start colima"
 expect_call "brew link --force node@$NODE_MAJOR"
+expect_call "brew install --quiet bun"
 expect_call "npm install -g @colbymchenry/codegraph"
 
 ## DOCKER PLUGIN DIRECTORIES ##

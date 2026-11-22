@@ -51,7 +51,7 @@ unset brew
 
 # Tool and private bin directories, if they exist; ~/.local/bin ends up first, even when
 # path_helper (macOS login shells, tmux) moved it behind the system directories
-for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/bin" "$HOME/.local/bin"; do
+for dir in /usr/local/go/bin "$HOME/go/bin" "$HOME/.cargo/bin" "$HOME/.bun/bin" "$HOME/bin" "$HOME/.local/bin"; do
     if [ -d "$dir" ]; then
         _shellmoi_path_prepend "$dir"
     fi
