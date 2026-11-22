@@ -80,8 +80,8 @@ if [ "$(uname -s)" = Darwin ]; then
 fi
 
 # Where the installers put binaries; on PATH here so new tools are found right away, and
-# so installers that add their directory to ~/.bashrc when it is missing (codex) don't
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
+# so installers that add their directory to ~/.bashrc when it is missing (codex, bun) don't
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
 
 usage() {
     echo "Usage: $0 <tool file or name>..."
