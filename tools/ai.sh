@@ -7,6 +7,12 @@ install_claude() { curl -fsSL https://claude.ai/install.sh | "$BASH"; }
 # OpenAI Codex CLI
 install_codex() { curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh; }
 
+# Switches between Codex CLI accounts
+install_codex_auth() {
+    ensure node
+    npm_global codex-auth
+}
+
 # Code knowledge graph for AI agents
 install_codegraph() {
     ensure node

@@ -90,7 +90,7 @@ On a new machine, `all` goes through every tool file, one checklist each:
 | `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                      |
 | `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, bun, python, uv, sdkman, java, mvn |
 | `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                                 |
-| `tools/ai.sh`    | claude, codex, codegraph, openspec, archify, groma, impeccable                                                        |
+| `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                            |
 
 On macOS most tools come from Homebrew, and nothing needs `sudo`. Docker runs in a
 [Colima](https://github.com/abiosoft/colima) VM that starts at login: the checklist shows
@@ -190,7 +190,15 @@ prints a version.
 Put secrets, work-specific aliases and anything else machine-specific in `~/.bashrc.local`.
 `.bashrc` sources it last, and git ignores it.
 
-### 4. History search with the arrow keys
+### 4. Secrets stay out of the history
+
+`.bashrc` adds patterns to `HISTIGNORE`, so a command that names a secret in upper case,
+such as `export AWS_SECRET_ACCESS_KEY=...` or `GITHUB_TOKEN=... gh api`, is neither saved
+nor recalled with Up. The patterns are `SECRET`, `TOKEN`, `PASSWORD`, `PASSWD`, `_KEY`,
+`APIKEY`, `JWT` and `CREDENTIAL` anywhere in the line, so `git commit -m "Fix TOKEN
+refresh"` is left out too. `tests/history_test.sh` checks this.
+
+### 5. History search with the arrow keys
 
 Type the start of a command, then press Up or Down to step through the history entries
 that start with it. bash-sensible sets this for Bash, and `.inputrc` sets it for every
@@ -199,9 +207,20 @@ other program that uses Readline, such as `python` and `psql`. `.inputrc` first 
 
 ## Git
 
-`.config/git/config` holds the shared settings: Git LFS, `push.autoSetupRemote`, and
+`.config/git/config` holds the shared settings: Git LFS,
 [diff-so-fancy](https://github.com/so-fancy/diff-so-fancy) as the pager when it is
-installed. `.config/git/ignore` is the global ignore file, and
+installed, and:
+
+| Setting                     | Effect                                                            |
+| --------------------------- | ----------------------------------------------------------------- |
+| `init.defaultBranch = main` | New repositories start on `main`                                  |
+| `help.autocorrect = prompt` | A mistyped command such as `git pul` offers the closest one       |
+| `fetch.prune = true`        | Fetching drops remote-tracking branches deleted on the remote     |
+| `pull.rebase = true`        | Pulling replays unpushed local commits on top of the remote       |
+| `push.autoSetupRemote`      | The first push of a new branch sets its upstream                  |
+| `push.followTags = true`    | Pushing also pushes annotated tags that point at pushed commits   |
+
+`.config/git/ignore` is the global ignore file, and
 `.config/lazygit/config.yml` makes lazygit show diffs with diff-so-fancy too.
 
 Keep `user.name`, `user.email` and credential helpers in `~/.gitconfig`, which is not

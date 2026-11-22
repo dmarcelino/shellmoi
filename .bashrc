@@ -123,6 +123,11 @@ if [ -f ~/.config/bash/sensible/sensible.bash ]; then
     unset prompt_command
 fi
 
+# Keep commands that name a secret out of the history, such as `export AWS_SECRET_ACCESS_KEY=...`
+# or `GITHUB_TOKEN=... gh api`. Upper case only, as environment variables are written, so
+# `./get_jwt_token.py` is kept
+HISTIGNORE="${HISTIGNORE:+$HISTIGNORE:}*SECRET*:*TOKEN*:*PASSWORD*:*PASSWD*:*_KEY*:*APIKEY*:*JWT*:*CREDENTIAL*"
+
 # make less more friendly for non-text input files, see lesspipe(1)
 [ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
 
