@@ -173,12 +173,12 @@ On a new machine, `all` goes through every tool file, one checklist each:
 ~/.local/share/shellmoi/install-tools.sh all
 ```
 
-| File             | Tools                                                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix, rsync          |
-| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, python, uv, sdkman, java, mvn |
-| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                            |
-| `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                       |
+| File             | Tools                                                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix, rsync               |
+| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, bun, python, uv, sdkman, java, mvn |
+| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                                 |
+| `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                            |
 
 On macOS most tools come from Homebrew, and nothing needs `sudo`. Docker runs in a
 [Colima](https://github.com/abiosoft/colima) VM that starts at login: the checklist shows
@@ -261,8 +261,8 @@ where bash-completion does not look.
 
 `PATH` comes first, before the check that stops non-interactive shells, so `bash -lc`
 from an IDE or an agent finds the same commands on `PATH`: Homebrew, then `~/bin`,
-`~/.local/bin`, Cargo's and Go's bin directories, with `~/.local/bin` first and repeated
-entries removed. On macOS this also puts Homebrew's Bash before `/bin/bash`, which
+`~/.local/bin`, Cargo's, Go's and Bun's bin directories, with `~/.local/bin` first and
+repeated entries removed. On macOS this also puts Homebrew's Bash before `/bin/bash`, which
 `path_helper` lists first in login shells. What a shell function provides, such as nvm's
 and SDKMAN's versions of node and java, still needs an interactive shell. Debian's
 `~/.profile` adds `~/bin` and `~/.local/bin` again after `.bashrc` runs, so a login shell

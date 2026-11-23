@@ -106,6 +106,15 @@ install_node() {
     apt_install nodejs
 }
 
+# JavaScript runtime, package manager and bundler
+install_bun() {
+    if is_mac; then brew_install bun; return; fi
+    apt_install unzip
+    # Into ~/.bun, which install-tools.sh and ~/.bashrc put on PATH: the installer then
+    # finds bun there and leaves ~/.bashrc alone, even with BUN_INSTALL set elsewhere
+    curl -fsSL https://bun.sh/install | BUN_INSTALL="$HOME/.bun" "$BASH"
+}
+
 # Python 3 with pip and venv
 install_python() {
     if is_mac; then brew_install python; return; fi
