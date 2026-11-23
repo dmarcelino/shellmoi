@@ -24,3 +24,7 @@
 [core]
 	# diff-so-fancy when installed, plain less otherwise
 	pager = "if command -v diff-so-fancy >/dev/null; then diff-so-fancy; else cat; fi | less --tabs=4 -RFX"
+# The git settings of the private profiles, such as their identities; install.sh writes it.
+# Last, so they win over the settings above; git skips it when it is missing.
+[include]
+	path = ~/.config/git/profiles.gitconfig

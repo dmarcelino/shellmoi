@@ -72,6 +72,11 @@ is_mac() { return 0; }
 expect_tool macOS colima offered
 expect_tool macOS docker-ce hidden
 expect_tool macOS bash offered
+expect_tool macOS rsync offered
+
+is_mac() { return 1; }
+expect_tool Linux rsync offered
+is_mac() { return 0; }
 
 ## NO HOMEBREW CONFIRMATION ##
 
@@ -150,6 +155,36 @@ expect_call "brew link --force node@$NODE_MAJOR"
 expect_call "brew install --quiet bun"
 expect_call "npm install -g @colbymchenry/codegraph"
 expect_call "npm install -g codex-auth"
+expect_call "brew install --quiet rsync"
+
+# macOS's own /usr/bin/rsync does not count: it lacks options push.sh uses
+installed_rsync && fail "macOS counts rsync as installed without Homebrew's"
+
+## UNATTENDED INSTALLS (--ensure) ##
+
+# Each case in a subshell: ensure_tools sets an EXIT trap and loads the tool files again.
+# On Linux, with rsync installed and jq missing:
+ensure_linux() {
+    is_mac() { return 1; }
+    has() { [ "$1" = rsync ]; }
+    : > "$calls"
+    ensure_tools "$@" > "$work/out" 2>&1
+}
+
+(ensure_linux rsync) || fail "--ensure failed for an installed tool: $(cat "$work/out")"
+[ ! -s "$calls" ] || fail "--ensure did something for an installed tool: $(cat "$calls")"
+
+(ensure_linux rsync jq) || fail "--ensure failed: $(cat "$work/out")"
+grep -qx "apt_install jq" "$calls" || fail "--ensure did not install the missing jq"
+grep -q "rsync" "$calls" && fail "--ensure installed rsync, which is installed"
+grep -qx "sudo -v" "$calls" || fail "--ensure did not ask for sudo before an apt install"
+
+(ensure_linux nope) && fail "--ensure accepted an unknown tool"
+grep -q "No tool nope" "$work/out" || fail "--ensure did not name the unknown tool"
+
+: > "$calls"
+(ensure_tools rsync > "$work/out" 2>&1) || fail "--ensure failed on macOS: $(cat "$work/out")"
+grep -qx "brew install --quiet rsync" "$calls" || fail "--ensure did not install rsync on macOS"
 
 ## DOCKER PLUGIN DIRECTORIES ##
 

@@ -80,3 +80,14 @@ install_tmux() { pkg_install tmux; }
 
 # Converts line endings between Windows (CRLF) and Unix (LF)
 install_dos2unix() { pkg_install dos2unix; }
+
+# Copies files between machines, only what changed; push.sh needs it
+install_rsync() { pkg_install rsync; }
+installed_rsync() {
+    if is_mac; then
+        # Not /usr/bin/rsync: macOS ships an old rsync or openrsync, which lack options
+        [ -x "$(brew --prefix)/bin/rsync" ]
+    else
+        has rsync
+    fi
+}

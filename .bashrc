@@ -200,6 +200,14 @@ export SDKMAN_DIR="$HOME/.sdkman"
 
 ## LOCAL ##
 
+# Drop-in files, one per private profile (see "Private profiles" in the README)
+for file in ~/.bashrc.d/*.sh; do
+    if [ -r "$file" ]; then
+        . "$file"
+    fi
+done
+unset file
+
 # Machine-specific or private settings (secrets, work aliases); never committed
 if [ -f ~/.bashrc.local ]; then
     . ~/.bashrc.local

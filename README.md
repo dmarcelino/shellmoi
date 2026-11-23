@@ -15,7 +15,10 @@ The script needs `git`; if it is missing, the script prints the command to insta
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
-  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `tools/` and `tests/`
+  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `push.sh`, `tools/` and
+  `tests/`
+- links the files of the [private profiles](#private-profiles) in the clone's `private/`
+  folder, if there are any
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them,
@@ -58,14 +61,99 @@ It undoes the install:
 - removes every link into the clone and moves back the oldest `<file>.bak.<timestamp>`,
   which holds what was there before the first install; newer backups stay, and are listed
 - leaves alone a file that is no longer a link into the clone
-- removes `.claude/settings.json`, `.codex/config.toml` and `~/.gitconfig` only if they
-  are still exactly what the install wrote
+- removes `.claude/settings.json`, `.codex/config.toml`, `~/.gitconfig` and
+  `~/.ssh/config` only if they are still exactly what the install wrote, and
+  `~/.config/git/profiles.gitconfig`, which the install generates
 - puts back the `.claude/settings.json` from before the merge; the merged one is removed
   if unchanged, else kept as `settings.json.bak.<timestamp>`
 - removes directories left empty
 
-The clone stays; delete it if you no longer need it. Run `tests/uninstall_test.sh` to
-check an install and uninstall round trip in a temporary home.
+The clone stays; delete it if you no longer need it, but not before moving your private
+profiles out of it. Run `tests/uninstall_test.sh` to check an install and uninstall round
+trip in a temporary home.
+
+## Private profiles
+
+Private settings, such as work aliases, SSH hosts and git identities, can't go in this
+public repository. They go in profiles: folders in the clone's `private/` folder, which git
+ignores. Each profile is laid out like `~`, as this repository is, and `install.sh` links
+its files into `~` the same way, with the same backups and uninstall:
+
+```text
+~/.local/share/shellmoi/private/
+  personal/.bashrc.d/personal.sh
+  personal/.config/git/profiles/personal.gitconfig
+  work/.bashrc.d/work.sh
+  work/.ssh/config.d/work.conf
+  work/.config/git/profiles/work.gitconfig
+  work/.config/git/profiles/work-identity.inc
+```
+
+A machine can have several profiles, so each one only adds files named after itself, in
+folders that shellmoi loads:
+
+| Profile file                                 | Loaded by                                                    |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| `~/.bashrc.d/<profile>.sh`                   | `.bashrc`, before `~/.bashrc.local`                          |
+| `~/.ssh/config.d/<profile>.conf`             | `~/.ssh/config`, through `Include config.d/*.conf`           |
+| `~/.config/git/profiles/<profile>.gitconfig` | `~/.config/git/profiles.gitconfig`, which the install writes |
+
+- **SSH:** without a `~/.ssh/config`, the install creates one holding only the `Include`.
+  It never edits one that is there; it prints the line to add at its top instead.
+- **git:** the shared git config includes the generated `profiles.gitconfig` last, so the
+  profiles' settings win over the shared ones. An identity for one folder goes in an
+  `includeIf`, with the included file named other than `*.gitconfig`:
+
+  ```ini
+  [includeIf "gitdir:~/work/"]
+  	path = work-identity.inc
+  ```
+
+  `~/.gitconfig` is read after all of them, so take `user.email` out of it.
+- **Two profiles, one file:** if two profiles have the same file, the first by name wins,
+  and the install says so. A profile file at a path shellmoi links itself, such as
+  `.bashrc`, is skipped too.
+- **Removed or renamed:** the install records what it linked, in
+  `~/.local/state/shellmoi/`. A file deleted from a profile, or a profile renamed, has its
+  old link removed by the next install, and uninstall removes them all.
+- **Not linked:** Finder's `.DS_Store` and editor leftovers (`*~`, `.*.swp`).
+
+Make `private/` a git repository of its own, never pushed anywhere: it keeps the history,
+and `git clean` in the clone leaves a nested repository alone.
+
+```bash
+git -C ~/.local/share/shellmoi/private init
+```
+
+The profiles live in the clone: **deleting the clone deletes them.** Keep a copy on
+another machine with `push.sh`.
+
+### Copy profiles to another machine
+
+`push.sh` sets up another machine over SSH: it installs shellmoi there, or updates it,
+then copies the given profiles into its clone and links them.
+
+```bash
+~/.local/share/shellmoi/push.sh <host> work personal
+```
+
+- **SSH first:** the other machine must accept SSH. On macOS, turn on Remote Login; on
+  WSL, install and start `openssh-server`. SSH keys are not copied: make a new one there.
+- **rsync:** copies the profiles. `push.sh` installs it on both machines when it is
+  missing, through `install-tools.sh --ensure rsync`, and on the other machine asks for
+  the sudo password if needed. It uses the first rsync 3 or later on `PATH`: on macOS,
+  Homebrew's, as the system's is older. Without one, it stops.
+- **Nothing is deleted:** a file on the other machine that the copy changes is kept in
+  `private/.backups/<time>/` first. A file removed from a profile here stays there.
+- **Secrets:** before copying, `push.sh` lists the lines that name something like a
+  secret, by file, line and the word found, never the value: the words in `HISTIGNORE`,
+  in any case, and `PRIVATE KEY`.
+
+Push from one machine, and edit the profiles there: a change made on another machine is
+not copied back.
+
+`tests/private_test.sh` and `tests/push_test.sh` check this, the second against a fake
+home with an `ssh` stand-in.
 
 ## Tools
 
@@ -87,7 +175,7 @@ On a new machine, `all` goes through every tool file, one checklist each:
 
 | File             | Tools                                                                                                                 |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix                      |
+| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix, rsync               |
 | `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, bun, python, uv, sdkman, java, mvn |
 | `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                                 |
 | `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                            |
@@ -105,6 +193,14 @@ all and none. After the checklist, nothing else asks, not even Homebrew before i
 dependencies; on Linux, sudo asks for the password once, right after the checklist.
 Installed tools are marked in the checklist; tick one to install it again or update it. No
 installer edits `~/.bashrc`: it already sets up `PATH` and the tools that need it.
+
+Scripts can install tools without the checklist: `--ensure` installs the named tools that
+are missing and does nothing for the others; sudo asks for the password only if one is
+missing.
+
+```bash
+~/.local/share/shellmoi/install-tools.sh --ensure rsync
+```
 
 To add a tool, add a function to a tool file, with a description line above it:
 
@@ -196,7 +292,9 @@ prints a version.
 ### 3. Keep private settings local
 
 Put secrets, work-specific aliases and anything else machine-specific in `~/.bashrc.local`.
-`.bashrc` sources it last, and git ignores it.
+`.bashrc` sources it last, and git ignores it. Settings you want on several machines go in
+a [private profile](#private-profiles) instead: `.bashrc` sources every
+`~/.bashrc.d/*.sh` just before `~/.bashrc.local`.
 
 ### 4. Secrets stay out of the history
 

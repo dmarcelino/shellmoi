@@ -1,2 +1,5 @@
 .viminfo
 .bashrc.local
+
+# Private profiles; see "Private profiles" in the README
+/private/

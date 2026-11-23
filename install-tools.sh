@@ -4,6 +4,7 @@
 #   ./install-tools.sh tools/ai.sh [tools/dev.sh ...]
 #   ./install-tools.sh ai dev           # same, by name
 #   ./install-tools.sh all              # every tool file
+#   ./install-tools.sh --ensure rsync   # installs rsync if missing; no checklist
 #
 # Run it as your own user: tools that live in $HOME (claude, rustup, SDKMAN, uv) must not
 # land in root's home. Steps that need root call sudo themselves; the password is asked
@@ -85,6 +86,7 @@ export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.bun/bin:/usr/local/go/bin:
 
 usage() {
     echo "Usage: $0 <tool file or name>..."
+    echo "       $0 --ensure <tool>...    installs the tools that are missing, without asking"
     echo
     echo "Tool files:"
     local file
@@ -426,6 +428,11 @@ main() {
         echo "This script supports Debian, Ubuntu and macOS with Homebrew (apt-get not found)." >&2
         exit 1
     fi
+    if [ "$1" = --ensure ]; then
+        shift
+        ensure_tools "$@"
+        return
+    fi
     if [ ! -t 0 ] || [ ! -t 1 ]; then
         echo "Run this in a terminal: it shows a checklist." >&2
         exit 1
@@ -463,7 +470,41 @@ main() {
         echo "Nothing to install."
         exit 0
     fi
+    install_chosen
+}
 
+# --ensure: installs the named tools that are missing, without the checklist or a terminal;
+# for scripts such as push.sh
+ensure_tools() {
+    local file tool
+    if [ $# -eq 0 ]; then
+        usage >&2
+        exit 2
+    fi
+    for file in "$TOOLS_DIR"/*.sh; do
+        # shellcheck source=/dev/null
+        . "$file"
+    done
+    CHOSEN=()
+    for tool in "$@"; do
+        if ! declare -F "install_${tool//-/_}" >/dev/null || ! is_supported "$tool"; then
+            echo "No tool $tool on this system." >&2
+            exit 1
+        fi
+        if ! is_installed "$tool"; then
+            CHOSEN+=("$tool")
+        fi
+    done
+    if [ ${#CHOSEN[@]} -eq 0 ]; then
+        return 0
+    fi
+    trap cleanup EXIT
+    trap cancel INT
+    install_chosen
+}
+
+# Installs the tools in CHOSEN; fails if any of them failed
+install_chosen() {
     echo "Installing: ${CHOSEN[*]}"
     # Homebrew never needs root; apt does
     if ! is_mac; then
