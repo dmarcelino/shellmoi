@@ -164,7 +164,7 @@ are installed. With Apple's git, it loads git's completion from the Command Line
 where bash-completion does not look.
 
 The terminal title shows `user@host: dir` in xterm. Inside tmux it shows the folder alone,
-as the pane title; tmux passes it on to the terminal's tab, such as WezTerm's, only with
+as the pane title; tmux passes it on to the terminal's tab only with
 `set -g set-titles on` and `set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux,
 `claude` also runs without `TMUX` and `TMUX_PANE`, so Claude Code shows in the title when
 it is working or done, which it does only outside tmux. Claude, and the commands it runs,
@@ -235,14 +235,6 @@ Keep `user.name`, `user.email` and credential helpers in `~/.gitconfig`, which i
 tracked. Git reads it after `.config/git/config`, and `git config --global` writes to it.
 The install script creates an empty one if it is missing: without it,
 `git config --global` would write to `.config/git/config` in this repository.
-
-## WezTerm
-
-`.config/wezterm/wezterm.lua` shows the folder in tab titles and uses a slim window frame.
-Hosts and usernames stay in `~/.config/wezterm/wezterm_private.lua`, which git ignores;
-copy `wezterm_private.example.lua` to start one. With it, WezTerm offers its SSH domains
-and opens the default one on launch; without it, WezTerm opens a local shell. Ctrl+Alt+V
-pastes a clipboard image to the SSH host of the pane, on Windows only.
 
 ## Skills
 
