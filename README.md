@@ -347,7 +347,7 @@ copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked expli
 | `plainly`       | Explains something, or the previous answer, in simple words         |
 | `owl`           | Slow, multi-perspective analysis of a problem, question or decision |
 | `tdd`           | Test first: failing test, smallest fix, then passing test           |
-| `diagnose`      | Finds a root cause from evidence; asks for 3 checks before guessing |
+| `diagnose`      | Finds a root cause from evidence; runs checks before guessing       |
 | `gaps`          | Finds gaps, contradictions and ambiguity in a request; asks first   |
 | `design-review` | Design review of a PR, branch or local work; edits nothing          |
 
