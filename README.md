@@ -163,6 +163,14 @@ key bindings (Ctrl-R history, Ctrl-T files, Alt-C folders), worktrunk and SDKMAN
 are installed. With Apple's git, it loads git's completion from the Command Line Tools,
 where bash-completion does not look.
 
+The terminal title shows `user@host: dir` in xterm. Inside tmux it shows the folder alone,
+as the pane title; tmux passes it on to the terminal's tab, such as WezTerm's, only with
+`set -g set-titles on` and `set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux,
+`claude` also runs without `TMUX` and `TMUX_PANE`, so Claude Code shows in the title when
+it is working or done, which it does only outside tmux. Claude, and the commands it runs,
+then don't know they are inside tmux. `wsc` starts claude through worktrunk, so it keeps
+the default.
+
 `PATH` comes first, before the check that stops non-interactive shells, so `bash -lc`
 from an IDE or an agent finds the same commands on `PATH`: Homebrew, then `~/bin`,
 `~/.local/bin`, Cargo's, Go's and Bun's bin directories, with `~/.local/bin` first and
