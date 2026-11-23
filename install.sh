@@ -124,7 +124,7 @@ managed_files() {
         case "$file" in
             README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh|push.sh) continue ;;
             install-tools.sh|tools/*|tests/*) continue ;;
-            .claude/skills|.codex/skills/*) continue ;;  # see deploy_skills
+            skills/*) continue ;;  # see deploy_skills
         esac
         printf '%s\0' "$file"
     done < <(git -C "$SHELLMOI_DIR" ls-files -z)
@@ -200,7 +200,7 @@ merge_json() {
 # Prints the name of each skill directory, one per line
 skill_names() {
     local dir
-    for dir in "$SHELLMOI_DIR"/.codex/skills/*/; do
+    for dir in "$SHELLMOI_DIR"/skills/*/; do
         [ -d "$dir" ] || continue
         basename "$dir"
     done
@@ -231,7 +231,7 @@ deploy_skills() {
         for tool in .codex .claude; do
             file="$tool/skills/$name"
             mkdir -p "$HOME/$tool/skills"
-            link "$SHELLMOI_DIR/$file" "$HOME/$file" "$file" \
+            link "$SHELLMOI_DIR/skills/$name" "$HOME/$file" "$file" \
                 "$tool/skills$BACKUP_SUFFIX/$name"
         done
     done < <(skill_names)
@@ -544,7 +544,7 @@ undeploy_skills() {
     while IFS= read -r name; do
         for tool in .codex .claude; do
             file="$tool/skills/$name"
-            unlink_restore "$SHELLMOI_DIR/$file" "$file" "$tool/skills" "/$name"
+            unlink_restore "$SHELLMOI_DIR/skills/$name" "$file" "$tool/skills" "/$name"
         done
     done < <(skill_names)
 }

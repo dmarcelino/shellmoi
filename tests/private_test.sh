@@ -79,7 +79,7 @@ backups=$(cd "$home" && ls -d .inputrc.bak.*)
     fail "the original ~/.inputrc is not kept in one backup: $backups"
 grep -q "skipped        ~/.inputrc of profile alpha (shellmoi links it)" "$work/out" ||
     fail "install did not report the profile's ~/.inputrc as skipped"
-[ ! -e "$clone/.codex/skills/owl/extra.md" ] || fail "a profile's file was put inside a skill"
+[ ! -e "$clone/skills/owl/extra.md" ] || fail "a profile's file was put inside a skill"
 
 for junk in .DS_Store .bashrc.d/alpha.sh~ .bashrc.d/.alpha.sh.swp; do
     [ ! -e "$home/$junk" ] && [ ! -L "$home/$junk" ] || fail "install linked ~/$junk"

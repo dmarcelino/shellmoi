@@ -25,7 +25,7 @@ shellmoi() {
 command -v jq >/dev/null 2>&1 || fail "this test needs jq, which merges the Claude settings"
 
 git clone --quiet "$repo" "$clone"
-skill=$(cd "$clone/.codex/skills" && ls | head -n 1)
+skill=$(cd "$clone/skills" && ls | head -n 1)
 
 # A home with files in the way of some links, a skill of the same name, an unrelated
 # skill, a backup made by another tool and an edited Claude settings file
