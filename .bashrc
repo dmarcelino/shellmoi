@@ -153,10 +153,14 @@ parse_kubectl_namespace() {
 # user@host:folder(branch)[namespace]$
 PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\W\[\033[01;31m\]$(parse_git_branch)\[\033[01;33m\]$(parse_kubectl_namespace)\[\033[00m\]\$ '
 
-# If this is an xterm set the title to user@host: dir
+# Terminal title: "user@host: dir" in xterm; inside tmux the folder alone, as the pane title
+# (#T), which shows in a tab only with `set -g set-titles on` or #T in window-status-format
 case "$TERM" in
 xterm*|rxvt*)
     PS1="\[\e]0;\u@\h: \w\a\]$PS1"
+    ;;
+tmux*|screen*)
+    PS1="\[\e]2;\W\a\]$PS1"
     ;;
 esac
 

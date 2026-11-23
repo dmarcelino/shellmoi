@@ -62,6 +62,13 @@ alias wsx='wt switch --base @ --create --execute=codex'
 
 ## CODING AGENTS ##
 
+# Claude Code shows working/done in the terminal title only outside tmux, so hide tmux from
+# it. Claude, and the commands it runs, then don't know they are inside tmux.
+# `wsc` starts claude through wt, not this alias. Defined first, so pr-review uses it.
+if [ -n "$TMUX" ]; then
+    alias claude='env -u TMUX -u TMUX_PANE claude'
+fi
+
 alias cld='claude -c || claude'
 alias cdx='codex resume --last'
 alias cldp='MAX_THINKING_TOKENS=0 claude -p --settings '\''{}'\'' --no-session-persistence --model=haiku --effort low'
