@@ -15,7 +15,8 @@ The script needs `git`; if it is missing, the script prints the command to insta
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
-  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `tools/` and `tests/`
+  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `tools/`, `tests/` and
+  `skills/`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them, and
@@ -165,9 +166,8 @@ The install script creates an empty one if it is missing: without it,
 
 ## Skills
 
-Skills for Claude Code and Codex, which read the same format. The repository keeps one
-copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked explicitly:
-`/<name>` in Claude Code, `$<name>` in Codex.
+Skills for Claude Code and Codex, which read the same format. They live in `skills/`.
+All are invoked explicitly: `/<name>` in Claude Code, `$<name>` in Codex.
 
 | Skill        | What it does                                                        |
 | ------------ | ------------------------------------------------------------------- |
@@ -181,3 +181,19 @@ copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked expli
 The install script links `~/.claude/skills/<name>` and `~/.codex/skills/<name>` to each
 skill. A skill already at that place is moved to `~/.claude/skills.bak.<timestamp>/` or
 `~/.codex/skills.bak.<timestamp>/`, outside the skills folder, so it does not load twice.
+
+### Without the rest of shellmoi
+
+The [skills CLI](https://github.com/vercel-labs/skills) installs the skills on their own,
+without the shell configuration. It needs Node 22.20 or later:
+
+```bash
+npx skills add dmarcelino/shellmoi -g -a claude-code codex                # pick from a list
+npx skills add dmarcelino/shellmoi -g -a claude-code codex --skill tdd    # one skill
+```
+
+It copies the skills into `~/.agents/skills`, which Codex reads, and links
+`~/.claude/skills/<name>` to that copy. Update them with `npx skills update -g`, not
+`git pull`. Install a skill with either the CLI or `install.sh`, not both: each replaces
+the other's `~/.claude/skills/<name>`. Set `DISABLE_TELEMETRY=1` to turn off the CLI's
+usage telemetry.

@@ -46,7 +46,7 @@ expect_same() {
 }
 
 git clone --quiet "$repo" "$clone"
-skill=$(cd "$clone/.codex/skills" && ls | head -n 1)
+skill=$(cd "$clone/skills" && ls | head -n 1)
 
 # A home with files in the way of some links, a skill of the same name, an unrelated
 # skill, a backup made by another tool and an edited Claude settings file
