@@ -5,6 +5,10 @@
 if [ -x /usr/bin/dircolors ]; then
     alias ls='ls --color=auto'
     alias grep='grep --color=auto'
+elif [ "$(uname -s)" = Darwin ]; then
+    # macOS ls takes -G for colors, not --color
+    alias ls='ls -G'
+    alias grep='grep --color=auto'
 fi
 
 alias ll='ls -alF'
@@ -57,6 +61,13 @@ alias wsc='wt switch --base @ --create --execute=claude'
 alias wsx='wt switch --base @ --create --execute=codex'
 
 ## CODING AGENTS ##
+
+# Claude Code shows working/done in the terminal title only outside tmux, so hide tmux from
+# it. Claude, and the commands it runs, then don't know they are inside tmux.
+# `wsc` starts claude through wt, not this alias. Defined first, so pr-review uses it.
+if [ -n "$TMUX" ]; then
+    alias claude='env -u TMUX -u TMUX_PANE claude'
+fi
 
 alias cld='claude -c || claude'
 alias cdx='codex resume --last'

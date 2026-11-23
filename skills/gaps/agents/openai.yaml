@@ -1,0 +1,7 @@
+interface:
+  display_name: "Gaps"
+  short_description: "Find gaps and ambiguity in a request, ask before acting"
+  default_prompt: "Use $gaps to find gaps, inconsistencies and ambiguity in this request and ask me to clarify them before proceeding."
+
+policy:
+  allow_implicit_invocation: false
