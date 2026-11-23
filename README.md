@@ -135,6 +135,7 @@ then copies the given profiles into its clone and links them.
 
 ```bash
 ~/.local/share/shellmoi/push.sh <host> work personal
+~/.local/share/shellmoi/push.sh <host> --all    # every profile in private/
 ```
 
 - **SSH first:** the other machine must accept SSH. On macOS, turn on Remote Login; on

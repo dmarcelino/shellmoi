@@ -112,6 +112,17 @@ export API_TOKEN=do-not-print" ] || fail "the backup does not hold the file as i
 [ ! -e "$remote_home/alpha" ] && [ ! -e "$remote_home/.bashrc.d/alpha.sh.bak" ] ||
     fail "the backups were linked into the remote home"
 
+## ALL PROFILES ##
+
+# alpha is on the remote already, beta not yet
+push remote --all || fail "push --all exited non-zero: $(cat "$work/out")"
+[ "$(readlink "$remote_home/.bashrc.d/beta.sh")" = "$remote_private/beta/.bashrc.d/beta.sh" ] ||
+    fail "push --all did not copy and link beta"
+[ "$(readlink "$remote_home/.bashrc.d/alpha.sh")" = "$remote_private/alpha/.bashrc.d/alpha.sh" ] ||
+    fail "push --all unlinked alpha"
+push remote --all alpha && fail "push accepted --all with a profile name"
+grep -q -- "--all takes no profile names" "$work/out" || fail "push did not reject --all alpha"
+
 ## A HOST THAT LOOKS LIKE AN OPTION ##
 
 push -oProxyCommand=true alpha && fail "push took an ssh option as the host"

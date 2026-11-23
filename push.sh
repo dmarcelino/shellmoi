@@ -2,11 +2,11 @@
 # Sets up another machine over SSH: installs shellmoi there, or updates it, then copies the
 # given private profiles into its clone and links them.
 #
-#   ~/.local/share/shellmoi/push.sh <host> [profile...]
+#   ~/.local/share/shellmoi/push.sh <host> [--all | profile...]
 #
 # <host> is anything ssh takes, such as user@host or a Host from ~/.ssh/config. The profiles
-# are folders in $SHELLMOI_DIR/private. Nothing is deleted on the other machine: a profile
-# file that changed is kept in its private/.backups/<time>/ first.
+# are folders in $SHELLMOI_DIR/private; --all pushes every one. Nothing is deleted on the
+# other machine: a profile file that changed is kept in its private/.backups/<time>/ first.
 # Must run under Bash 3.2 (the macOS default), so no mapfile or associative arrays, and no
 # "${array[@]}" of an empty array under set -u.
 
@@ -24,7 +24,9 @@ SECRET_PATTERN='SECRET|TOKEN|PASSWORD|PASSWD|_KEY|APIKEY|JWT|CREDENTIAL|PRIVATE 
 EXCLUDES=(--exclude=.git --exclude=.DS_Store --exclude='*~' --exclude='.*.sw?')
 
 usage() {
-    echo "Usage: $0 <host> [profile...]"
+    echo "Usage: $0 <host> [--all | profile...]"
+    echo
+    echo "--all pushes every profile."
     echo
     echo "Profiles in $PRIVATE_DIR:"
     list_profiles | sed 's/^/    /'
@@ -101,6 +103,14 @@ main() {
         -*|'') die "Not a host: $HOST" ;;
     esac
     local profile
+    if [ "${1:-}" = --all ]; then
+        [ $# -eq 1 ] || die "--all takes no profile names"
+        set --
+        while IFS= read -r profile; do
+            set -- "$@" "$profile"
+        done < <(list_profiles)
+        [ $# -gt 0 ] || die "No profiles in $PRIVATE_DIR"
+    fi
     for profile in "$@"; do
         case "$profile" in
             .*|*/*|'') die "Not a profile name: '$profile'" ;;
