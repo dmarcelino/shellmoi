@@ -123,6 +123,15 @@ if [ -f ~/.config/bash/sensible/sensible.bash ]; then
     unset prompt_command
 fi
 
+# The clone this file is in, from the ~/.bashrc link: `cd SHELLMOI_DIR` goes there
+# (bash-sensible's cdable_vars), and install.sh and push.sh use it
+shellmoi_rc=${BASH_SOURCE[0]}
+if [ -L "$shellmoi_rc" ]; then
+    shellmoi_rc=$(readlink "$shellmoi_rc")
+fi
+export SHELLMOI_DIR=${shellmoi_rc%/*}
+unset shellmoi_rc
+
 # Keep commands that name a secret out of the history, such as `export AWS_SECRET_ACCESS_KEY=...`
 # or `GITHUB_TOKEN=... gh api`. Upper case only, as environment variables are written, so
 # `./get_jwt_token.py` is kept

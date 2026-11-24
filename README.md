@@ -334,6 +334,11 @@ Locally, and in VS Code's own terminal, `code` is the real one. A folder whose p
 characters other than letters, digits, `.`, `-`, `_`, `~`, `+` and spaces may not become a
 clickable link. `tests/code_test.sh` checks this.
 
+`.bashrc` exports `SHELLMOI_DIR`, the path of the clone, which it finds by following the
+`~/.bashrc` link. bash-sensible turns on `cdable_vars`, so `cd SHELLMOI_DIR` goes to the
+clone from any folder; `install.sh` and `push.sh` use it too.
+`tests/shellmoi_dir_test.sh` checks this.
+
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
 prints a version.
 
