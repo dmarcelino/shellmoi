@@ -15,8 +15,8 @@ The script needs `git`; if it is missing, the script prints the command to insta
 
 - clones this repository into `~/.local/share/shellmoi`, or pulls it if it is already there
 - links every tracked file into `~`, except this README, `LICENSE`, `AGENTS.md`,
-  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `push.sh`, `tools/` and
-  `tests/`
+  `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `push.sh`, `pull.sh`,
+  `lib/`, `tools/` and `tests/`
 - links the files of the [private profiles](#private-profiles) in the clone's `private/`
   folder, if there are any, and prints the `sudo` commands to copy their
   [system files](#system-files) into `/`
@@ -175,11 +175,36 @@ then copies the given profiles into its clone and links them.
   secret, by file, line and the word found, never the value: the words in `HISTIGNORE`,
   in any case, and `PRIVATE KEY`.
 
-Push from one machine, and edit the profiles there: a change made on another machine is
-not copied back.
+Edit the profiles on one machine and push from there. To bring back a change made on
+another machine, pull it.
 
-`tests/private_test.sh` and `tests/push_test.sh` check this, the second against a fake
-home with an `ssh` stand-in.
+### Copy profiles back
+
+`pull.sh` is the reverse: it copies the given profiles from another machine's clone into
+this one's, and links the files that are new here. It changes nothing on the other
+machine, not even shellmoi or rsync there.
+
+```bash
+~/.local/share/shellmoi/pull.sh <host> work
+~/.local/share/shellmoi/pull.sh <host> --all    # every profile on <host>
+```
+
+- **The other machine's copy wins:** a file whose content differs is replaced by the other
+  machine's, even when this machine's is newer. The replaced file is kept in
+  `private/.backups/<time>/` first. A file only here stays.
+- **Review with git:** commit in `private/` before pulling. Afterwards, `pull.sh` lists
+  the files it updated and added, and prints the `git diff` that shows the changes, or,
+  before the first commit, a `diff` against the backups. It warns when a profile has
+  changes not committed, as the diff would mix them with the pull's.
+- **Linking:** when files were added, or a [system file](#system-files) changed, it runs
+  `install.sh`, which links them or prints the `sudo` commands.
+- **Errors:** if a profile cannot be copied in full, or the install fails, `pull.sh` still
+  copies the other profiles and lists what changed, then exits with an error.
+- **rsync:** as for `push.sh`, but it installs rsync only here, and stops if the other
+  machine has no rsync 3 or later.
+
+`tests/private_test.sh`, `tests/push_test.sh` and `tests/pull_test.sh` check this, the last
+two against a fake home with an `ssh` stand-in.
 
 ## Tools
 

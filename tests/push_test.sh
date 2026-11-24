@@ -52,6 +52,7 @@ cd "$REMOTE_HOME"
 exec env -i HOME="$REMOTE_HOME" PATH=/usr/bin:/bin bash -c "$*"
 EOF
 chmod +x "$work/bin/ssh"
+link_rsync3 "$work/bin"
 
 push() {
     env -i HOME="$local_home" PATH="$work/bin:/usr/bin:/bin" REMOTE_HOME="$remote_home" \
