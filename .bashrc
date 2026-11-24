@@ -153,14 +153,19 @@ parse_kubectl_namespace() {
 # user@host:folder(branch)[namespace]$
 PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\W\[\033[01;31m\]$(parse_git_branch)\[\033[01;33m\]$(parse_kubectl_namespace)\[\033[00m\]\$ '
 
-# Terminal title: "user@host: dir" in xterm; inside tmux the folder alone, as the pane title
-# (#T), which shows in a tab only with `set -g set-titles on` or #T in window-status-format
+# Terminal title: the full path, from ~ inside home; "user@host: path" in xterm, and inside
+# tmux the path alone, as the pane title (#T), which shows in a tab only with
+# `set -g set-titles on` or #T in window-status-format.
+# Not \w: PROMPT_DIRTRIM (bash-sensible) shortens it to the last folders.
+# Invisible marks wrap the title: \342\200\217\342\200\216 (U+200F U+200E) before it and
+# \342\200\216 (U+200E) after it. With `unicode-bidi: plaintext` on its tab names, a terminal
+# such as Tabby then cuts a long title at the start, not the end (see the README)
 case "$TERM" in
 xterm*|rxvt*)
-    PS1="\[\e]0;\u@\h: \w\a\]$PS1"
+    PS1='\[\e]0;\342\200\217\342\200\216\u@\h: ${PWD/#"$HOME"/\~}\342\200\216\a\]'"$PS1"
     ;;
 tmux*|screen*)
-    PS1="\[\e]2;\W\a\]$PS1"
+    PS1='\[\e]2;\342\200\217\342\200\216${PWD/#"$HOME"/\~}\342\200\216\a\]'"$PS1"
     ;;
 esac
 

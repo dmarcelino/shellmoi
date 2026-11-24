@@ -260,13 +260,22 @@ key bindings (Ctrl-R history, Ctrl-T files, Alt-C folders), worktrunk and SDKMAN
 are installed. With Apple's git, it loads git's completion from the Command Line Tools,
 where bash-completion does not look.
 
-The terminal title shows `user@host: dir` in xterm. Inside tmux it shows the folder alone,
-as the pane title; tmux passes it on to the terminal's tab only with
-`set -g set-titles on` and `set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux,
+The terminal title shows the full path, starting from `~` inside the home folder:
+`user@host: path` in xterm, and inside tmux the path alone, as the pane title; tmux passes
+it on to the terminal's tab only with `set -g set-titles on` and `set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux,
 `claude` also runs without `TMUX` and `TMUX_PANE`, so Claude Code shows in the title when
 it is working or done, which it does only outside tmux. Claude, and the commands it runs,
 then don't know they are inside tmux. `wsc` starts claude through worktrunk, so it keeps
 the default.
+
+The title starts with two invisible marks, right-to-left (U+200F) then left-to-right
+(U+200E), and ends with a left-to-right one. They let a tab cut a long path at the start,
+`…ojects/app/backup`, while other titles, such as Claude Code's, are still cut at the end.
+In Tabby, add this under Settings → Appearance → Custom CSS:
+
+```css
+tab-header .name { unicode-bidi: plaintext; text-align: left; }
+```
 
 `PATH` comes first, before the check that stops non-interactive shells, so `bash -lc`
 from an IDE or an agent finds the same commands on `PATH`: Homebrew, then `~/bin`,
