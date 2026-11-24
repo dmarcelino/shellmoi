@@ -262,8 +262,8 @@ where bash-completion does not look.
 
 The terminal title shows the full path, starting from `~` inside the home folder:
 `user@host: path` in xterm, and inside tmux the path alone, as the pane title; tmux passes
-it on to the terminal's tab only with `set -g set-titles on` and `set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux,
-`claude` also runs without `TMUX` and `TMUX_PANE`, so Claude Code shows in the title when
+it on to the terminal's tab only with `set -g set-titles on` and
+`set -g set-titles-string '#T'` in `~/.tmux.conf`. Inside tmux, `claude` also runs without `TMUX` and `TMUX_PANE`, so Claude Code shows in the title when
 it is working or done, which it does only outside tmux. Claude, and the commands it runs,
 then don't know they are inside tmux. `wsc` starts claude through worktrunk, so it keeps
 the default.
