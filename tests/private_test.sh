@@ -18,8 +18,13 @@ private=$clone/private
 # shellcheck source=lib.sh
 . "$repo/tests/lib.sh"
 
+# A stand-in for /, so the profiles' .system/ files never meet the real system
+root=$work/root
+mkdir -p "$root"
+
 shellmoi() {
-    HOME=$home SHELLMOI_DIR=$clone bash "$repo/install.sh" "$@" > "$work/out" 2>&1 ||
+    HOME=$home SHELLMOI_DIR=$clone SHELLMOI_SYSTEM_ROOT=$root \
+        bash "$repo/install.sh" "$@" > "$work/out" 2>&1 ||
         fail "install.sh $* exited non-zero: $(cat "$work/out")"
 }
 
@@ -152,5 +157,55 @@ leftovers=$(cd "$home" && find . -name '*.bak.*')
 [ -z "$leftovers" ] || fail "install backed up its own links: $leftovers"
 shellmoi uninstall
 expect_same "uninstall after a rename did not restore the home" "$before" "$(snapshot "$home")"
+
+## SYSTEM FILES ##
+
+# A profile's .system/ mirrors /: never linked into ~, and never copied by install, which
+# prints the sudo commands instead
+rm -rf "${private:?}"/*/
+put "$private/alpha/.bashrc.d/alpha.sh" 'ALPHA_LOADED=yes'
+put "$private/alpha/.system/etc/resolver/example.test" 'nameserver 192.0.2.1'
+put "$private/alpha/.system/etc/same.conf" 'same'
+put "$private/alpha/.system/etc/.same.conf.swp" 'vim swap'
+put "$private/beta/.system/etc/resolver/example.test" 'nameserver 192.0.2.2'
+put "$root/etc/same.conf" 'same'
+home=$work/home-system
+mkdir -p "$home"
+before=$(snapshot "$home")
+root_before=$(snapshot "$root")
+
+shellmoi
+[ ! -e "$home/.system" ] && [ ! -e "$home/etc" ] || fail "install linked .system/ into ~"
+[ "$(readlink "$home/.bashrc.d/alpha.sh")" = "$private/alpha/.bashrc.d/alpha.sh" ] ||
+    fail "a profile with .system/ did not get its other files linked"
+expect_same "install changed the system" "$root_before" "$(snapshot "$root")"
+grep -qF "    sudo install -d -m 755 $root/etc/resolver" "$work/out" ||
+    fail "install did not print the command for the missing folder: $(cat "$work/out")"
+grep -qF "    sudo install -m 644 $private/alpha/.system/etc/resolver/example.test $root/etc/resolver/example.test" \
+    "$work/out" || fail "install did not print the copy command: $(cat "$work/out")"
+grep -q "sudo .*same.conf" "$work/out" && fail "install printed a command for an identical file"
+grep -q "up to date     /etc/same.conf" "$work/out" ||
+    fail "install did not report the identical file"
+grep -q "skipped        /etc/resolver/example.test of profile beta" "$work/out" ||
+    fail "install did not report the file both profiles have"
+grep -q "swp" "$work/out" && fail "install took an editor leftover for a system file"
+
+# Run the printed commands, without sudo: the next install has nothing to print
+grep '^    sudo ' "$work/out" | sed 's/^    sudo //' > "$work/commands"
+bash "$work/commands" || fail "the printed commands failed"
+[ "$(cat "$root/etc/resolver/example.test")" = 'nameserver 192.0.2.1' ] ||
+    fail "the printed commands did not copy alpha's file"
+shellmoi
+grep -q "sudo" "$work/out" && fail "install printed commands for files already in place"
+grep -q "up to date     /etc/resolver/example.test" "$work/out" ||
+    fail "install did not report the copied file as up to date"
+
+# Uninstall prints the removal of the files still the same as the profiles'
+put "$root/etc/same.conf" 'changed on the system'
+shellmoi uninstall
+grep -qF "    sudo rm $root/etc/resolver/example.test" "$work/out" ||
+    fail "uninstall did not print the command to remove the file: $(cat "$work/out")"
+grep -q "sudo rm .*same.conf" "$work/out" && fail "uninstall would remove a changed file"
+expect_same "uninstall with system files did not restore the home" "$before" "$(snapshot "$home")"
 
 echo "PASS: private"

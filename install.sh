@@ -24,6 +24,11 @@ Include config.d/*.conf"
 # What install linked from the profiles, one home-relative path per line, so a later
 # install or uninstall finds links to files a profile no longer has
 PRIVATE_LINKS="$HOME/.local/state/shellmoi/private-links"
+# A profile's .system/ folder mirrors / rather than ~. Its files are never linked: install
+# prints the sudo commands that copy them. Tests set SHELLMOI_SYSTEM_ROOT to a temporary
+# folder that stands in for /.
+SYSTEM_DIR=".system"
+SYSTEM_ROOT="${SHELLMOI_SYSTEM_ROOT:-}"
 
 # Prints the command that installs a package on this system
 pkg_install_hint() {
@@ -239,18 +244,114 @@ deploy_skills() {
 
 # Prints, NUL-separated, each file of the private profiles as <profile>/<home-relative path>,
 # profiles in name order. Dot-folders such as .git and .backups are not profiles, and the
-# leftovers of Finder and editors are not files of them (push.sh skips the same).
+# leftovers of Finder and editors are not files of them (push.sh skips the same). The
+# .system/ folder is left out: its files belong in /, not ~ (see system_files).
 private_files() {
     local dir
     for dir in "$PRIVATE_DIR"/*/; do
         [ -d "$dir" ] || continue
         dir=${dir%/}
-        (cd "$dir" && find . \( -name .git -o -name .DS_Store -o -name '*~' -o -name '.*.sw?' \) \
-            -prune -o \( -type f -o -type l \) -print0) |
+        (cd "$dir" && find . \( -path "./$SYSTEM_DIR" -o -name .git -o -name .DS_Store \
+            -o -name '*~' -o -name '.*.sw?' \) -prune -o \( -type f -o -type l \) -print0) |
             while IFS= read -r -d '' file; do
                 printf '%s/%s\0' "${dir##*/}" "${file#./}"
             done
     done
+}
+
+# Prints, NUL-separated, <action>:<profile>/<path> for each file in the profiles' .system/
+# folders, the path relative to /. The action is "use", or "taken" for a path an earlier
+# profile has: as with the links, the first profile by name wins.
+system_files() {
+    local dir seen=$'\n'
+    for dir in "$PRIVATE_DIR"/*/; do
+        dir=${dir%/}
+        [ -d "$dir/$SYSTEM_DIR" ] || continue
+        while IFS= read -r -d '' file; do
+            file=${file#./}
+            if [[ $seen == *$'\n'"$file"$'\n'* ]]; then
+                printf 'taken:%s/%s\0' "${dir##*/}" "$file"
+            else
+                seen="$seen$file"$'\n'
+                printf 'use:%s/%s\0' "${dir##*/}" "$file"
+            fi
+        done < <(cd "$dir/$SYSTEM_DIR" && find . \( -name .DS_Store -o -name '*~' \
+            -o -name '.*.sw?' \) -prune -o \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
+    done
+}
+
+# Prints the command, each word quoted for the shell, indented as a hint
+print_command() {
+    printf '   '
+    printf ' %q' "$@"
+    printf '\n'
+}
+
+# The sudo commands that copy the profiles' system files, which print_system_commands shows
+# with the other hints at the end of the install
+SYSTEM_COMMANDS=""
+
+# Compares the profiles' .system/ files with the system's, and keeps in SYSTEM_COMMANDS the
+# sudo commands that copy those missing or different. Never writes outside $HOME itself.
+check_system_files() {
+    local record entry profile file src target commands="" dirs=$'\n' dir
+    [ -d "$PRIVATE_DIR" ] || return 0
+    while IFS= read -r -d '' record; do
+        entry=${record#*:}
+        profile=${entry%%/*}
+        file=${entry#*/}
+        src="$PRIVATE_DIR/$profile/$SYSTEM_DIR/$file"
+        target="$SYSTEM_ROOT/$file"
+        if [ "${record%%:*}" = taken ]; then
+            echo "  skipped        /$file of profile $profile (an earlier profile has it)"
+            continue
+        fi
+        if cmp -s "$src" "$target"; then
+            echo "  up to date     /$file"
+            continue
+        fi
+        if [ -e "$target" ] || [ -L "$target" ]; then
+            echo "  differs        /$file (profile $profile)"
+        else
+            echo "  missing        /$file (profile $profile)"
+        fi
+        dir=$(dirname "$target")
+        if [ ! -d "$dir" ] && [[ $dirs != *$'\n'"$dir"$'\n'* ]]; then
+            dirs="$dirs$dir"$'\n'
+            commands="$commands$(print_command sudo install -d -m 755 "$dir")"$'\n'
+        fi
+        commands="$commands$(print_command sudo install -m 644 "$src" "$target")"$'\n'
+    done < <(system_files)
+    SYSTEM_COMMANDS=$commands
+}
+
+print_system_commands() {
+    if [ -n "$SYSTEM_COMMANDS" ]; then
+        echo
+        echo "System files in the private profiles differ from the system's. To install them:"
+        printf '%s' "$SYSTEM_COMMANDS"
+    fi
+}
+
+# Prints the sudo commands that remove the system files still the same as the profiles'
+uncheck_system_files() {
+    local record entry profile file target commands=""
+    [ -d "$PRIVATE_DIR" ] || return 0
+    while IFS= read -r -d '' record; do
+        [ "${record%%:*}" = use ] || continue
+        entry=${record#*:}
+        profile=${entry%%/*}
+        file=${entry#*/}
+        target="$SYSTEM_ROOT/$file"
+        if cmp -s "$PRIVATE_DIR/$profile/$SYSTEM_DIR/$file" "$target"; then
+            commands="$commands$(print_command sudo rm "$target")"$'\n'
+        fi
+    done < <(system_files)
+    if [ -n "$commands" ]; then
+        echo
+        echo "System files the private profiles installed. To remove them:"
+        printf '%s' "$commands"
+    fi
 }
 
 # Prints, NUL-separated, <action>:<profile>/<home-relative path> for each file of the
@@ -615,9 +716,11 @@ run_install() {
     deploy
     deploy_skills
     deploy_private
+    check_system_files
     write_git_profiles
     ensure_local_gitconfig
     ensure_ssh_include
+    print_system_commands
     check_login_shell
     check_bash_completion
     check_diff_so_fancy
@@ -648,6 +751,7 @@ run_uninstall() {
     undeploy_skills
     undeploy
     undeploy_private
+    uncheck_system_files
     remove_git_profiles
     remove_ssh_include
     remove_local_gitconfig

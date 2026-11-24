@@ -18,7 +18,8 @@ The script needs `git`; if it is missing, the script prints the command to insta
   `CLAUDE.md`, `.gitignore`, `install.sh`, `install-tools.sh`, `push.sh`, `tools/` and
   `tests/`
 - links the files of the [private profiles](#private-profiles) in the clone's `private/`
-  folder, if there are any
+  folder, if there are any, and prints the `sudo` commands to copy their
+  [system files](#system-files) into `/`
 - moves a file already at a link's place, such as the system's default `~/.bashrc`, to
   `<file>.bak.<timestamp>`
 - copies `.claude/settings.json` and `.codex/config.toml` instead of linking them,
@@ -67,6 +68,8 @@ It undoes the install:
 - puts back the `.claude/settings.json` from before the merge; the merged one is removed
   if unchanged, else kept as `settings.json.bak.<timestamp>`
 - removes directories left empty
+- prints the `sudo rm` commands for the profiles' [system files](#system-files) that are
+  still in place, unchanged
 
 The clone stays; delete it if you no longer need it, but not before moving your private
 profiles out of it. Run `tests/uninstall_test.sh` to check an install and uninstall round
@@ -87,6 +90,7 @@ its files into `~` the same way, with the same backups and uninstall:
   work/.ssh/config.d/work.conf
   work/.config/git/profiles/work.gitconfig
   work/.config/git/profiles/work-identity.inc
+  work/.system/etc/resolver/corp.example
 ```
 
 A machine can have several profiles, so each one only adds files named after itself, in
@@ -117,6 +121,27 @@ folders that shellmoi loads:
   `~/.local/state/shellmoi/`. A file deleted from a profile, or a profile renamed, has its
   old link removed by the next install, and uninstall removes them all.
 - **Not linked:** Finder's `.DS_Store` and editor leftovers (`*~`, `.*.swp`).
+
+### System files
+
+A profile's `.system/` folder is laid out like `/` rather than `~`: for files that belong
+to the system, such as `/etc/resolver/corp.example`, which sends a domain's DNS lookups to
+its own servers while another VPN, such as Tailscale, handles the rest. The install never
+links them, as a link to a file you can edit would let any program running as you change
+the system's settings, and never runs `sudo`. It compares each file with the system's and
+prints the commands that copy the missing or different ones, owned by root, mode 644:
+
+```text
+System files in the private profiles differ from the system's. To install them:
+    sudo install -d -m 755 /etc/resolver
+    sudo install -m 644 ~/.local/share/shellmoi/private/work/.system/etc/resolver/corp.example /etc/resolver/corp.example
+```
+
+- **Two profiles, one file:** the first by name wins, as for the links.
+- **Uninstall** prints `sudo rm` for each file still the same as the profile's.
+- **Removed from a profile:** the copy stays on the system; remove it with `sudo rm`.
+- **Other machines:** `push.sh` copies `.system/` with the rest of the profile, and the
+  install there prints the commands for that machine.
 
 Make `private/` a git repository of its own, never pushed anywhere: it keeps the history,
 and `git clean` in the clone leaves a nested repository alone.
