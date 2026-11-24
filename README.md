@@ -335,8 +335,9 @@ characters other than letters, digits, `.`, `-`, `_`, `~`, `+` and spaces may no
 clickable link. `tests/code_test.sh` checks this.
 
 `.bashrc` exports `SHELLMOI_DIR`, the path of the clone, which it finds by following the
-`~/.bashrc` link. bash-sensible turns on `cdable_vars`, so `cd SHELLMOI_DIR` goes to the
-clone from any folder; `install.sh` and `push.sh` use it too.
+`~/.bashrc` link, relative links and chains of them included. bash-sensible turns on
+`cdable_vars`, so `cd SHELLMOI_DIR` goes to the clone from any folder; `install.sh` and
+`push.sh` use it too. A copy of `.bashrc` that is not in a clone leaves it unset.
 `tests/shellmoi_dir_test.sh` checks this.
 
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`

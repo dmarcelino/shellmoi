@@ -124,13 +124,23 @@ if [ -f ~/.config/bash/sensible/sensible.bash ]; then
 fi
 
 # The clone this file is in, from the ~/.bashrc link: `cd SHELLMOI_DIR` goes there
-# (bash-sensible's cdable_vars), and install.sh and push.sh use it
+# (bash-sensible's cdable_vars), and install.sh and push.sh use it. Follows relative links
+# and chains of them; left unset outside a clone, such as for a copy of this file, so the
+# scripts use their default.
 shellmoi_rc=${BASH_SOURCE[0]}
-if [ -L "$shellmoi_rc" ]; then
-    shellmoi_rc=$(readlink "$shellmoi_rc")
+while [ -L "$shellmoi_rc" ]; do
+    shellmoi_link=$(readlink "$shellmoi_rc")
+    case $shellmoi_link in
+        /*) shellmoi_rc=$shellmoi_link ;;
+        *) shellmoi_rc=$(dirname "$shellmoi_rc")/$shellmoi_link ;;
+    esac
+done
+# CDPATH empty: with bash-sensible's ".", cd prints the folder too
+if shellmoi_dir=$(CDPATH='' cd -P -- "$(dirname "$shellmoi_rc")" && pwd) &&
+    [ -f "$shellmoi_dir/install.sh" ]; then
+    export SHELLMOI_DIR=$shellmoi_dir
 fi
-export SHELLMOI_DIR=${shellmoi_rc%/*}
-unset shellmoi_rc
+unset shellmoi_rc shellmoi_link shellmoi_dir
 
 # Keep commands that name a secret out of the history, such as `export AWS_SECRET_ACCESS_KEY=...`
 # or `GITHUB_TOKEN=... gh api`. Upper case only, as environment variables are written, so
