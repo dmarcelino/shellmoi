@@ -296,6 +296,19 @@ A command run over SSH, such as `ssh mac-box claude`, starts a non-interactive s
 reads none of these files on macOS, so `PATH` is the system's. Run it in a login shell
 instead: `ssh mac-box bash -lc claude`.
 
+Over SSH, `code [folder]` prints a link instead of starting VS Code, like `code .` from
+WSL: `vscode://vscode-remote/ssh-remote+user@address/path/to/folder`. Click it, or
+Ctrl-click, depending on the terminal, to open the folder in the VS Code of the machine you
+connect from, through its Remote-SSH extension. Tabby asks once per click before it opens
+a `vscode://` link. VS Code makes its own SSH connection, so it needs a key or a password
+of its own. The link names the user and the address the SSH connection reached this
+machine at, from `SSH_CONNECTION`; inside tmux, panes keep the one from when they started.
+Set `SHELLMOI_CODE_HOST`, in `~/.bashrc.local`, to a `Host` from the other machine's
+`~/.ssh/config` when that address doesn't work from there, such as behind a jump host.
+Locally, and in VS Code's own terminal, `code` is the real one. A folder whose path has
+characters other than letters, digits, `.`, `-`, `_`, `~`, `+` and spaces may not become a
+clickable link. `tests/code_test.sh` checks this.
+
 Open a new shell and check bash-completion loaded: `echo "${BASH_COMPLETION_VERSINFO[@]}"`
 prints a version.
 
