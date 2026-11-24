@@ -30,6 +30,25 @@ tabname() {
     printf '\033]0;%s\007' "$name"
 }
 
+# Over SSH, `code [folder]` prints a vscode:// link that opens the folder in the VS Code of
+# the machine you connect from, through its Remote-SSH extension: click it in the terminal.
+# The host in the link is SHELLMOI_CODE_HOST if set, else user@address this machine was
+# reached at. Local shells and VS Code's own terminals run the real `code`.
+code() {
+    if [ -z "${SSH_CONNECTION:-}" ] || [ "${TERM_PROGRAM:-}" = vscode ]; then
+        command code "$@"
+        return
+    fi
+    local dir address
+    if ! dir=$(cd -- "${1:-.}" 2>/dev/null && pwd -P); then
+        echo "code: not a folder: ${1:-.}" >&2
+        return 1
+    fi
+    read -r _ _ address _ <<<"$SSH_CONNECTION"
+    # %20: a space would end the link in the terminal
+    echo "vscode://vscode-remote/ssh-remote+${SHELLMOI_CODE_HOST:-$USER@$address}${dir// /%20}"
+}
+
 ## GIT ##
 
 # Prune merged worktrees, then delete local branches whose remote branch is gone
