@@ -141,7 +141,8 @@ System files in the private profiles differ from the system's. To install them:
 - **Uninstall** prints `sudo rm` for each file still the same as the profile's.
 - **Removed from a profile:** the copy stays on the system; remove it with `sudo rm`.
 - **Other machines:** `push.sh` copies `.system/` with the rest of the profile, and the
-  install there prints the commands for that machine.
+  install there prints the commands for that machine: `push.sh --install`, or
+  `install.sh` run there.
 
 Make `private/` a git repository of its own, never pushed anywhere: it keeps the history,
 and `git clean` in the clone leaves a nested repository alone.
@@ -155,22 +156,31 @@ another machine with `push.sh`.
 
 ### Copy profiles to another machine
 
-`push.sh` sets up another machine over SSH: it installs shellmoi there, or updates it,
-then copies the given profiles into its clone and links them.
+`push.sh` copies the given profiles over SSH into another machine's clone, and changes
+nothing else there. It lists the files it updated and added.
 
 ```bash
 ~/.local/share/shellmoi/push.sh <host> work personal
-~/.local/share/shellmoi/push.sh <host> --all    # every profile in private/
+~/.local/share/shellmoi/push.sh <host> --all              # every profile in private/
+~/.local/share/shellmoi/push.sh <host> --install --all    # set up the machine too
 ```
 
+- **Copy only:** the other machine needs a clone of shellmoi already. A changed file that
+  is linked takes effect at once. A new file, one not linked yet, or a changed
+  [system file](#system-files) needs `install.sh` there: `push.sh` says so and prints the
+  command.
+- **`--install`:** first installs shellmoi on the other machine, or updates it, then
+  copies, then runs `install.sh` there to link the profiles. With no profiles, it only
+  sets up shellmoi.
 - **SSH first:** the other machine must accept SSH. On macOS, turn on Remote Login; on
   WSL, install and start `openssh-server`. SSH keys are not copied: make a new one there.
-- **rsync:** copies the profiles. `push.sh` installs it on both machines when it is
-  missing, through `install-tools.sh --ensure rsync`, and on the other machine asks for
-  the sudo password if needed. It uses the first rsync 3 or later on `PATH`: on macOS,
-  Homebrew's, as the system's is older. Without one, it stops.
-- **Nothing is deleted:** a file on the other machine that the copy changes is kept in
-  `private/.backups/<time>/` first. A file removed from a profile here stays there.
+- **rsync:** copies the profiles. It uses the first rsync 3 or later on `PATH` on each
+  machine: on macOS, Homebrew's, as the system's is older. Without one, it stops. With
+  `--install`, `push.sh` installs it on both machines when it is missing, through
+  `install-tools.sh --ensure rsync`, and on the other machine asks for the sudo password
+  if needed.
+- **Nothing is deleted:** a file on the other machine whose content the copy changes is
+  kept in `private/.backups/<time>/` first. A file removed from a profile here stays there.
 - **Secrets:** before copying, `push.sh` lists the lines that name something like a
   secret, by file, line and the word found, never the value: the words in `HISTIGNORE`,
   in any case, and `PRIVATE KEY`.
@@ -181,12 +191,12 @@ another machine, pull it.
 ### Copy profiles back
 
 `pull.sh` is the reverse: it copies the given profiles from another machine's clone into
-this one's, and links the files that are new here. It changes nothing on the other
-machine, not even shellmoi or rsync there.
+this one's `private/`, and changes nothing else, here or there.
 
 ```bash
 ~/.local/share/shellmoi/pull.sh <host> work
-~/.local/share/shellmoi/pull.sh <host> --all    # every profile on <host>
+~/.local/share/shellmoi/pull.sh <host> --all              # every profile on <host>
+~/.local/share/shellmoi/pull.sh <host> --install --all    # and link what is new
 ```
 
 - **The other machine's copy wins:** a file whose content differs is replaced by the other
@@ -196,12 +206,14 @@ machine, not even shellmoi or rsync there.
   the files it updated and added, and prints the `git diff` that shows the changes, or,
   before the first commit, a `diff` against the backups. It warns when a profile has
   changes not committed, as the diff would mix them with the pull's.
-- **Linking:** when files were added, or a [system file](#system-files) changed, it runs
-  `install.sh`, which links them or prints the `sudo` commands.
+- **Linking:** when files were added or are not linked yet, or a
+  [system file](#system-files) changed, it prints the `install.sh` command, which links
+  them or prints the `sudo` commands. With `--install`, it runs it, which also updates the
+  clone.
 - **Errors:** if a profile cannot be copied in full, or the install fails, `pull.sh` still
   copies the other profiles and lists what changed, then exits with an error.
-- **rsync:** as for `push.sh`, but it installs rsync only here, and stops if the other
-  machine has no rsync 3 or later.
+- **rsync:** as for `push.sh`, but `--install` installs rsync only here. It never changes
+  the other machine.
 
 `tests/private_test.sh`, `tests/push_test.sh` and `tests/pull_test.sh` check this, the last
 two against a fake home with an `ssh` stand-in.

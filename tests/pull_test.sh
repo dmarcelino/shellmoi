@@ -73,7 +73,7 @@ put "$private/alpha/.ssh/config.d/alpha.conf" 'Host alpha-host'
 put "$private/alpha/.system/etc/shellmoi-test.conf" 'v=1'
 # A login shell on the remote that prints a greeting: not a profile, nor rsync's path
 put "$remote_home/.profile" 'echo Welcome'
-run push.sh remote alpha || fail "the push that sets up the remote failed: $(cat "$work/out")"
+run push.sh remote --install alpha || fail "the push that sets up the remote failed: $(cat "$work/out")"
 grep -q "command not found" "$work/out" && fail "push ran the remote's greeting as rsync: $(cat "$work/out")"
 # The local install, so the profile is linked here as it would be
 env -i HOME="$local_home" PATH="/usr/bin:/bin" SHELLMOI_DIR="$local_clone" SHELLMOI_SYSTEM_ROOT="$work/root" \
@@ -89,7 +89,7 @@ put "$remote_private/gamma/.bashrc.d/gamma.sh" 'GAMMA=1'
 ## PULLING ONE PROFILE ##
 
 before=$(snapshot "$remote_home")
-run pull.sh remote alpha || fail "pull exited non-zero: $(cat "$work/out")"
+run pull.sh remote --install alpha || fail "pull exited non-zero: $(cat "$work/out")"
 expect_same "pull changed the remote" "$before" "$(snapshot "$remote_home")"
 grep -q "command not found" "$work/out" && fail "pull ran the remote's greeting as rsync: $(cat "$work/out")"
 [ "$(cat "$private/alpha/.bashrc.d/alpha.sh")" = 'ALPHA=2' ] || fail "the change did not come back"
@@ -134,7 +134,7 @@ git -C "$private" checkout --quiet -- alpha
 
 ## ALL PROFILES ##
 
-run pull.sh remote --all || fail "pull --all exited non-zero: $(cat "$work/out")"
+run pull.sh remote --install --all || fail "pull --all exited non-zero: $(cat "$work/out")"
 [ "$(readlink "$local_home/.bashrc.d/gamma.sh")" = "$private/gamma/.bashrc.d/gamma.sh" ] ||
     fail "pull --all did not copy and link gamma"
 [ "$(readlink "$local_home/.bashrc.d/alpha.sh")" = "$private/alpha/.bashrc.d/alpha.sh" ] ||
@@ -145,7 +145,7 @@ run pull.sh remote --all || fail "pull --all exited non-zero: $(cat "$work/out")
 
 commit_private 'all pulled'
 ln -s alpha.sh "$remote_private/alpha/.bashrc.d/alpha-link.sh"
-run pull.sh remote alpha || fail "the pull of a symlink exited non-zero: $(cat "$work/out")"
+run pull.sh remote --install alpha || fail "the pull of a symlink exited non-zero: $(cat "$work/out")"
 grep -q "^    alpha/.bashrc.d/alpha-link.sh$" "$work/out" || fail "pull did not list the new symlink"
 grep -q "^Updated" "$work/out" && fail "pull listed the new symlink as updated, not added"
 [ "$(readlink "$local_home/.bashrc.d/alpha-link.sh")" = "$private/alpha/.bashrc.d/alpha-link.sh" ] ||
@@ -155,7 +155,7 @@ grep -q "^Updated" "$work/out" && fail "pull listed the new symlink as updated, 
 
 commit_private 'symlink pulled'
 put "$remote_private/alpha/.system/etc/shellmoi-test.conf" 'v=2'
-run pull.sh remote alpha || fail "the pull of a system file exited non-zero: $(cat "$work/out")"
+run pull.sh remote --install alpha || fail "the pull of a system file exited non-zero: $(cat "$work/out")"
 grep -q "^    alpha/.system/etc/shellmoi-test.conf$" "$work/out" || fail "pull did not list the system file"
 grep -qF "sudo install -m 644 $private/alpha/.system/etc/shellmoi-test.conf" "$work/out" ||
     fail "pull did not print the sudo commands for the changed system file"
@@ -174,7 +174,7 @@ commit_private 'my work pulled'
 put "$remote_private/alpha/.bashrc.d/unreadable.sh" 'X=1'
 chmod 000 "$remote_private/alpha/.bashrc.d/unreadable.sh"
 put "$remote_private/gamma/.bashrc.d/gamma-more.sh" 'MORE=1'
-run pull.sh remote --all && fail "pull exited zero with a file it could not copy"
+run pull.sh remote --install --all && fail "pull exited zero with a file it could not copy"
 chmod 644 "$remote_private/alpha/.bashrc.d/unreadable.sh"
 grep -q "Could not copy every file of: alpha" "$work/out" || fail "pull did not name the failed profile"
 [ "$(readlink "$local_home/.bashrc.d/gamma-more.sh")" = "$private/gamma/.bashrc.d/gamma-more.sh" ] ||
@@ -188,10 +188,54 @@ commit_private 'all pulled again'
 put "$remote_private/alpha/.bashrc.d/alpha-new.sh" 'NEW=1'
 # Its update of the clone cannot reach the upstream
 mv "$upstream" "$work/upstream-away"
-run pull.sh remote alpha && fail "pull exited zero with a failed install"
+run pull.sh remote --install alpha && fail "pull exited zero with a failed install"
 mv "$work/upstream-away" "$upstream"
 grep -q "^    alpha/.bashrc.d/alpha-new.sh$" "$work/out" || fail "a failed install hid the summary"
 grep -q "install.sh failed" "$work/out" || fail "pull did not say the install failed"
+
+## COPY ONLY, THE DEFAULT ##
+
+git -C "$private" add -A
+git -C "$private" -c user.name=test -c user.email=test@example.com commit --quiet -m 'before copy only'
+# A new commit upstream, which an install would bring to the local clone
+git -C "$upstream" -c user.name=test -c user.email=test@example.com \
+    commit --quiet --allow-empty -m 'not for a copy-only pull'
+local_head=$(git -C "$local_clone" rev-parse HEAD)
+put "$remote_private/alpha/.bashrc.d/alpha-copy.sh" 'COPY=1'
+put "$remote_private/alpha/.system/etc/shellmoi-test.conf" 'v=3'
+run pull.sh remote alpha || fail "the copy-only pull exited non-zero: $(cat "$work/out")"
+[ "$(cat "$private/alpha/.bashrc.d/alpha-copy.sh")" = 'COPY=1' ] || fail "the copy-only pull did not copy"
+[ ! -e "$local_home/.bashrc.d/alpha-copy.sh" ] || fail "the copy-only pull linked the new file"
+[ "$(git -C "$local_clone" rev-parse HEAD)" = "$local_head" ] ||
+    fail "the copy-only pull updated the local clone"
+grep -qE "==> Linking|sudo install" "$work/out" && fail "the copy-only pull ran install.sh"
+grep -q "Some files are not linked yet" "$work/out" || fail "the copy-only pull did not say to link"
+grep -qF "    ~/.local/share/shellmoi/install.sh" "$work/out" ||
+    fail "the copy-only pull did not print the install command"
+
+# The file it added, not linked, then changed there: still to link, and --install links it
+put "$remote_private/alpha/.bashrc.d/alpha-copy.sh" 'COPY=2'
+run pull.sh remote alpha || fail "the pull of the unlinked file exited non-zero: $(cat "$work/out")"
+grep -q "Some files are not linked yet" "$work/out" ||
+    fail "pull did not say to link a changed file that was never linked"
+put "$remote_private/alpha/.bashrc.d/alpha-copy.sh" 'COPY=3'
+run pull.sh remote --install alpha || fail "the pull --install of it exited non-zero: $(cat "$work/out")"
+[ "$(readlink "$local_home/.bashrc.d/alpha-copy.sh")" = "$private/alpha/.bashrc.d/alpha-copy.sh" ] ||
+    fail "pull --install did not link the changed file that was never linked"
+# A change to a linked file needs no install
+put "$remote_private/alpha/.bashrc.d/alpha-copy.sh" 'COPY=4'
+run pull.sh remote alpha || fail "the pull of a linked file exited non-zero: $(cat "$work/out")"
+grep -q "not linked" "$work/out" && fail "pull said to link a file that is linked"
+
+## A COPY THAT FAILS, WITH NOTHING COPIED ##
+
+put "$remote_private/alpha/.bashrc.d/unreadable.sh" 'X=1'
+chmod 000 "$remote_private/alpha/.bashrc.d/unreadable.sh"
+run pull.sh remote alpha && fail "pull exited zero with a file it could not copy"
+chmod 644 "$remote_private/alpha/.bashrc.d/unreadable.sh"
+rm "$remote_private/alpha/.bashrc.d/unreadable.sh"
+grep -q "Could not copy every file of: alpha" "$work/out" || fail "pull did not name the failed profile"
+grep -q "Already up to date" "$work/out" && fail "pull said up to date when a copy failed"
 
 ## NO COMMITS YET ##
 
@@ -216,6 +260,10 @@ run pull.sh -oProxyCommand=true alpha && fail "pull took an ssh option as the ho
 grep -q "Not a host: -oProxyCommand=true" "$work/out" || fail "pull did not reject the host"
 run pull.sh remote nope && fail "pull accepted a profile the remote does not have"
 grep -q "No profile nope on remote" "$work/out" || fail "pull did not name the unknown profile"
+run pull.sh remote --help || fail "pull remote --help exited non-zero: $(cat "$work/out")"
+grep -q "^Usage:" "$work/out" || fail "pull remote --help did not print the usage"
+run pull.sh remote "$(printf 'alpha\ngamma')" && fail "pull took a name with a newline"
+grep -q "Not a profile name" "$work/out" || fail "pull did not reject the name with a newline"
 run pull.sh remote ../alpha && fail "pull accepted a path as a profile"
 grep -q "Not a profile name" "$work/out" || fail "pull did not reject the path"
 mkdir -p "$work/bare"
