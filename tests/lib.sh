@@ -25,6 +25,19 @@ snapshot() {
     done)
 }
 
+# Links the first rsync 3 or later on PATH into the folder, which the tests put first on a
+# PATH of /usr/bin:/bin: there, macOS has only its own rsync, which is older
+link_rsync3() {
+    local rsync re='^rsync +version +([0-9]+)\.'
+    while IFS= read -r rsync; do
+        if [[ $("$rsync" --version 2>/dev/null) =~ $re ]] && [ "${BASH_REMATCH[1]}" -ge 3 ]; then
+            ln -sf "$rsync" "$1/rsync"
+            return 0
+        fi
+    done < <(type -ap rsync)
+    fail "this test needs rsync 3 or later on PATH"
+}
+
 # Fails with the label and a diff when the two strings differ
 expect_same() {
     local label=$1 expected=$2 actual=$3

@@ -127,8 +127,8 @@ managed_files() {
     local file
     while IFS= read -r -d '' file; do
         case "$file" in
-            README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh|push.sh) continue ;;
-            install-tools.sh|tools/*|tests/*) continue ;;
+            README.md|LICENSE|AGENTS.md|CLAUDE.md|.gitignore|install.sh|push.sh|pull.sh) continue ;;
+            install-tools.sh|lib/*|tools/*|tests/*) continue ;;
             .claude/skills|.codex/skills/*) continue ;;  # see deploy_skills
         esac
         printf '%s\0' "$file"
