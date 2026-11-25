@@ -33,6 +33,33 @@ install_gitleaks() {
     sudo install gitleaks -D -t /usr/local/bin/
 }
 
+# Finds errors in GitHub Actions workflows
+install_actionlint() {
+    # On Linux from GitHub, as Debian and Ubuntu don't package it. With shellcheck, as
+    # Homebrew's: actionlint uses it to check run: scripts
+    if is_mac; then brew_install actionlint; return; fi
+    ensure shellcheck
+    local version file
+    version=$(gh_latest rhysd/actionlint)
+    version=${version#v}
+    file="actionlint_${version}_linux_$(deb_arch).tar.gz"
+    enter_tmp
+    curl -fsSLO "https://github.com/rhysd/actionlint/releases/download/v$version/$file"
+    curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v$version/actionlint_${version}_checksums.txt" |
+        grep " $file\$" | sha256sum --check
+    tar xf "$file" actionlint
+    sudo install actionlint -D -t /usr/local/bin/
+}
+
+# Finds security issues in GitHub Actions workflows
+install_zizmor() {
+    # On Linux from PyPI, as Debian and Ubuntu don't package it; its GitHub binaries need
+    # glibc 2.34, the PyPI ones 2.28. uv puts it in ~/.local/bin
+    if is_mac; then brew_install zizmor; return; fi
+    ensure uv
+    uv tool install --upgrade zizmor
+}
+
 # Docker Engine, with the buildx and compose plugins
 install_docker_ce() {
     local distro

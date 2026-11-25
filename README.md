@@ -236,12 +236,12 @@ On a new machine, `all` goes through every tool file, one checklist each:
 ~/.local/share/shellmoi/install-tools.sh all
 ```
 
-| File             | Tools                                                                                                                 |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix, rsync               |
-| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, docker-ce, colima, rustup, worktrunk, go, node, bun, python, uv, sdkman, java, mvn |
-| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                                 |
-| `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                            |
+| File             | Tools                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools/shell.sh` | bash (macOS), bash-completion, diff-so-fancy, lazygit, fzf, fd, bat, ripgrep, jq, tmux, dos2unix, rsync                                  |
+| `tools/dev.sh`   | gh, git-lfs, shellcheck, gitleaks, actionlint, zizmor, docker-ce, colima, rustup, worktrunk, go, node, bun, python, uv, sdkman, java, mvn |
+| `tools/cloud.sh` | kubectl, helm, aws, eksctl, terraform                                                                                                    |
+| `tools/ai.sh`    | claude, codex, codex-auth, codegraph, openspec, archify, groma, impeccable                                                               |
 
 On macOS most tools come from Homebrew, and nothing needs `sudo`. Docker runs in a
 [Colima](https://github.com/abiosoft/colima) VM that starts at login: the checklist shows
@@ -251,7 +251,8 @@ Homebrew core no longer has it.
 Run it as your own user, not with `sudo`: many tools install into your home directory.
 Steps that need root call `sudo` themselves, and the password is asked once. A tool
 installs what it needs first, even from another file: codegraph and groma bring in node,
-worktrunk brings in rustup on Linux. Missing tools start ticked, and `a` cycles between missing,
+worktrunk brings in rustup on Linux, actionlint brings in shellcheck, zizmor brings in uv on
+Linux. Missing tools start ticked, and `a` cycles between missing,
 all and none. After the checklist, nothing else asks, not even Homebrew before installing
 dependencies; on Linux, sudo asks for the password once, right after the checklist.
 Installed tools are marked in the checklist; tick one to install it again or update it. No

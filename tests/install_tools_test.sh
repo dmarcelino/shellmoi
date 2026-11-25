@@ -156,6 +156,8 @@ expect_call "brew install --quiet bun"
 expect_call "npm install -g @colbymchenry/codegraph"
 expect_call "npm install -g codex-auth"
 expect_call "brew install --quiet rsync"
+expect_call "brew install --quiet actionlint"
+expect_call "brew install --quiet zizmor"
 
 # macOS's own /usr/bin/rsync does not count: it lacks options push.sh uses
 installed_rsync && fail "macOS counts rsync as installed without Homebrew's"
