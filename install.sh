@@ -852,14 +852,50 @@ ensure_ssh_include() {
     fi
 }
 
-# Whether the SSH config includes config.d/ before its first Host or Match: inside a Host
-# or Match block, an Include applies to that block only
+# Whether the SSH config loads config.d/ for every host: an Include of it before the first
+# Host or Match, in the file or in a file it includes the same way. Inside a Host or Match
+# block, an Include applies to that block only. Relative paths are relative to ~/.ssh, and
+# OpenSSH stops at 16 levels of Include
 has_ssh_include() {
+    local file=$1 depth=${2:-0} arg path
+    [ "$depth" -le 16 ] || return 1
+    while IFS= read -r arg; do
+        case $arg in *config.d/*) return 0 ;; esac
+        # shellcheck disable=SC2088  # a literal ~ in the config, expanded here
+        case $arg in
+            "~/"*) arg=$HOME/${arg#"~/"} ;;
+            /*) ;;
+            *) arg=$HOME/.ssh/$arg ;;
+        esac
+        # Unquoted on purpose, to expand the glob; arg holds no whitespace
+        for path in $arg; do
+            [ -f "$path" ] && has_ssh_include "$path" $((depth + 1)) && return 0
+        done
+    done < <(ssh_includes "$file")
+    return 1
+}
+
+# Prints the arguments of the Include lines before the first Host or Match, one per line.
+# Accepts "Include x", "Include=x", several arguments, quotes and trailing comments
+ssh_includes() {
     awk '
-        { keyword = tolower($1) }
-        keyword == "host" || keyword == "match" { exit }
-        keyword == "include" && /config\.d\// { found = 1; exit }
-        END { exit !found }
+        {
+            line = $0
+            sub(/^[ \t]+/, "", line)
+            if (line == "" || line ~ /^#/) next
+            match(line, /^[^ \t=]+/)
+            keyword = tolower(substr(line, 1, RLENGTH))
+            if (keyword == "host" || keyword == "match") exit
+            if (keyword != "include") next
+            rest = substr(line, RLENGTH + 1)
+            sub(/^[ \t]*=?[ \t]*/, "", rest)
+            n = split(rest, args, /[ \t]+/)
+            for (i = 1; i <= n; i++) {
+                if (args[i] ~ /^#/) break
+                gsub(/"/, "", args[i])
+                if (args[i] != "") print args[i]
+            }
+        }
     ' "$1" 2>/dev/null
 }
 
