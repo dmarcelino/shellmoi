@@ -1,0 +1,7 @@
+interface:
+  display_name: "Review PRs"
+  short_description: "P1/P2 review remarks for PRs, checked against a Jira ticket"
+  default_prompt: "Use $review-prs to review these pull requests, keep only the P1 and P2 findings, and draft a review remark for each."
+
+policy:
+  allow_implicit_invocation: false
