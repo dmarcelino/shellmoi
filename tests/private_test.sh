@@ -120,11 +120,14 @@ expect_same "uninstall did not restore the home as it was" "$before" "$(snapshot
 
 ## AN EXISTING ~/.ssh/config ##
 
-# Says how to include the profiles' SSH settings unless the config does, before any Host:
-# inside a Host block, an Include applies to that host only
+# Says how to include the profiles' SSH settings unless the config does, before any Host,
+# itself or in a file it includes before any Host: inside a Host block, an Include applies
+# to that host only. The optional third and fourth arguments are a file under ~/.ssh and
+# its content
 ssh_hint() {
     home=$work/ssh-$1
     put "$home/.ssh/config" "$2"
+    [ $# -lt 4 ] || put "$home/.ssh/$3" "$4"
     shellmoi
     [ "$(cat "$home/.ssh/config")" = "$2" ] || fail "install edited an existing ~/.ssh/config"
     grep -q "    Include config.d/\*.conf" "$work/out"
@@ -135,6 +138,28 @@ ssh_hint in-host 'Host mine
 Include config.d/*.conf' || fail "no hint for an Include inside a Host block"
 ssh_hint top 'Include config.d/*.conf
 Host mine' && fail "a hint for a ~/.ssh/config that includes the profiles"
+ssh_hint equals 'Include=config.d/*.conf
+Host mine' && fail "a hint for a ~/.ssh/config that includes the profiles with Include="
+ssh_hint via-file 'Include local.config
+Host mine' local.config 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles through another file"
+ssh_hint via-file-in-host 'Host mine
+Include local.config' local.config 'Include config.d/*.conf' ||
+    fail "no hint for a file that includes the profiles, included inside a Host block"
+ssh_hint host-in-file 'Include local.config' local.config 'Host other
+Include config.d/*.conf' || fail "no hint for an Include inside a Host block of an included file"
+ssh_hint glob-tilde 'Include ~/.ssh/conf/*.config
+Host mine' conf/a.config 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles through a ~ path and a glob"
+ssh_hint 'space in home' 'Include local.config
+Host mine' local.config 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles, in a home with a space"
+ssh_hint quoted 'Include "my dir/x.conf"
+Host mine' 'my dir/x.conf' 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles through a quoted path"
+ssh_hint other-dir 'Include myconfig.d/*.conf
+Host mine' myconfig.d/a.conf 'Host other' ||
+    fail "no hint for a ~/.ssh/config that includes a folder other than config.d"
 
 ## A PROFILE RENAMED, A FILE REMOVED ##
 

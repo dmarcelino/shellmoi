@@ -852,14 +852,63 @@ ensure_ssh_include() {
     fi
 }
 
-# Whether the SSH config includes config.d/ before its first Host or Match: inside a Host
-# or Match block, an Include applies to that block only
+# Whether the SSH config loads ~/.ssh/config.d/ for every host: an Include of it before the
+# first Host or Match, in the file or in a file it includes the same way. Inside a Host or
+# Match block, an Include applies to that block only. Relative paths are relative to
+# ~/.ssh; ~user/ paths are not supported. OpenSSH stops at 16 levels of Include
 has_ssh_include() {
+    # An empty IFS keeps paths with spaces whole where $pattern is unquoted below
+    local file=$1 depth=${2:-0} pattern base path IFS=
+    [ "$depth" -le 16 ] || return 1
+    while read -r pattern; do
+        # shellcheck disable=SC2088  # a literal ~ in the config, expanded here
+        case $pattern in
+            "~/"*) base=$HOME/ pattern=${pattern#"~/"} ;;
+            /*) base= ;;
+            *) base=$HOME/.ssh/ ;;
+        esac
+        case $base$pattern in "$HOME/.ssh/config.d/"*) return 0 ;; esac
+        # base is quoted, so only the part written in the config is a glob
+        for path in "$base"$pattern; do
+            [ -f "$path" ] && has_ssh_include "$path" $((depth + 1)) && return 0
+        done
+    done < <(ssh_includes "$file")
+    return 1
+}
+
+# Prints the arguments of the Include lines before the first Host or Match, one per line.
+# Accepts "Include x", "Include=x", several arguments, "quoted" or 'quoted' arguments with
+# spaces, and trailing comments
+ssh_includes() {
     awk '
-        { keyword = tolower($1) }
-        keyword == "host" || keyword == "match" { exit }
-        keyword == "include" && /config\.d\// { found = 1; exit }
-        END { exit !found }
+        {
+            line = $0
+            sub(/^[ \t]+/, "", line)
+            if (line == "" || line ~ /^#/) next
+            match(line, /^[^ \t=]+/)
+            keyword = tolower(substr(line, 1, RLENGTH))
+            if (keyword == "host" || keyword == "match") exit
+            if (keyword != "include") next
+            rest = substr(line, RLENGTH + 1)
+            sub(/^[ \t]*=?[ \t]*/, "", rest)
+            arg = ""; started = 0; quote = ""
+            for (i = 1; i <= length(rest); i++) {
+                c = substr(rest, i, 1)
+                if (quote != "") {
+                    if (c == quote) quote = ""; else arg = arg c
+                } else if (c == "\"" || c == "\047") {
+                    quote = c; started = 1
+                } else if (c == " " || c == "\t") {
+                    if (started) print arg
+                    arg = ""; started = 0
+                } else if (c == "#" && !started) {
+                    break
+                } else {
+                    arg = arg c; started = 1
+                }
+            }
+            if (started) print arg
+        }
     ' "$1" 2>/dev/null
 }
 
