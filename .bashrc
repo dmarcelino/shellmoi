@@ -179,9 +179,11 @@ PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\W\[\033[01;31m\]$(parse_gi
 # Invisible marks wrap the title: \342\200\217\342\200\216 (U+200F U+200E) before it and
 # \342\200\216 (U+200E) after it. With `unicode-bidi: plaintext` on its tab names, a terminal
 # such as Tabby then cuts a long title at the start, not the end (see the README)
+# Outside tmux, OSC 1337 CurrentDir also reports the folder, so Tabby can open a new tab or
+# SFTP there, even over SSH. tmux does not pass it on.
 case "$TERM" in
 xterm*|rxvt*)
-    PS1='\[\e]0;\342\200\217\342\200\216\u@\h: ${PWD/#"$HOME"/\~}\342\200\216\a\]'"$PS1"
+    PS1='\[\e]0;\342\200\217\342\200\216\u@\h: ${PWD/#"$HOME"/\~}\342\200\216\a\]\[\e]1337;CurrentDir=${PWD}\a\]'"$PS1"
     ;;
 tmux*|screen*)
     PS1='\[\e]2;\342\200\217\342\200\216${PWD/#"$HOME"/\~}\342\200\216\a\]'"$PS1"

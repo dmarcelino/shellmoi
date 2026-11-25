@@ -375,6 +375,9 @@ In Tabby, add this under Settings → Appearance → Custom CSS:
 tab-header .name { unicode-bidi: plaintext; text-align: left; }
 ```
 
+Outside tmux, the prompt also reports the current folder with `OSC 1337 CurrentDir`, so
+Tabby can open a new tab or SFTP in that folder, even over SSH. tmux does not pass it on.
+
 `PATH` comes first, before the check that stops non-interactive shells, so `bash -lc`
 from an IDE or an agent finds the same commands on `PATH`: Homebrew, then `~/bin`,
 `~/.local/bin`, Cargo's, Go's and Bun's bin directories, with `~/.local/bin` first and
