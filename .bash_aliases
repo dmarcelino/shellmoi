@@ -101,6 +101,7 @@ pr-review() { claude "/code-review PR $1"; }
 ## AWS ##
 
 alias aws-login='aws sso login --profile common'
+alias aws-login-code='aws sso login --profile common --use-device-code'
 
 ## KUBERNETES ##
 
