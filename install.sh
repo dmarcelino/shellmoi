@@ -852,23 +852,24 @@ ensure_ssh_include() {
     fi
 }
 
-# Whether the SSH config loads config.d/ for every host: an Include of it before the first
-# Host or Match, in the file or in a file it includes the same way. Inside a Host or Match
-# block, an Include applies to that block only. Relative paths are relative to ~/.ssh, and
-# OpenSSH stops at 16 levels of Include
+# Whether the SSH config loads ~/.ssh/config.d/ for every host: an Include of it before the
+# first Host or Match, in the file or in a file it includes the same way. Inside a Host or
+# Match block, an Include applies to that block only. Relative paths are relative to
+# ~/.ssh; ~user/ paths are not supported. OpenSSH stops at 16 levels of Include
 has_ssh_include() {
-    local file=$1 depth=${2:-0} arg path
+    # An empty IFS keeps paths with spaces whole where $pattern is unquoted below
+    local file=$1 depth=${2:-0} pattern base path IFS=
     [ "$depth" -le 16 ] || return 1
-    while IFS= read -r arg; do
-        case $arg in *config.d/*) return 0 ;; esac
+    while read -r pattern; do
         # shellcheck disable=SC2088  # a literal ~ in the config, expanded here
-        case $arg in
-            "~/"*) arg=$HOME/${arg#"~/"} ;;
-            /*) ;;
-            *) arg=$HOME/.ssh/$arg ;;
+        case $pattern in
+            "~/"*) base=$HOME/ pattern=${pattern#"~/"} ;;
+            /*) base= ;;
+            *) base=$HOME/.ssh/ ;;
         esac
-        # Unquoted on purpose, to expand the glob; arg holds no whitespace
-        for path in $arg; do
+        case $base$pattern in "$HOME/.ssh/config.d/"*) return 0 ;; esac
+        # base is quoted, so only the part written in the config is a glob
+        for path in "$base"$pattern; do
             [ -f "$path" ] && has_ssh_include "$path" $((depth + 1)) && return 0
         done
     done < <(ssh_includes "$file")
@@ -876,7 +877,8 @@ has_ssh_include() {
 }
 
 # Prints the arguments of the Include lines before the first Host or Match, one per line.
-# Accepts "Include x", "Include=x", several arguments, quotes and trailing comments
+# Accepts "Include x", "Include=x", several arguments, "quoted" or 'quoted' arguments with
+# spaces, and trailing comments
 ssh_includes() {
     awk '
         {
@@ -889,12 +891,23 @@ ssh_includes() {
             if (keyword != "include") next
             rest = substr(line, RLENGTH + 1)
             sub(/^[ \t]*=?[ \t]*/, "", rest)
-            n = split(rest, args, /[ \t]+/)
-            for (i = 1; i <= n; i++) {
-                if (args[i] ~ /^#/) break
-                gsub(/"/, "", args[i])
-                if (args[i] != "") print args[i]
+            arg = ""; started = 0; quote = ""
+            for (i = 1; i <= length(rest); i++) {
+                c = substr(rest, i, 1)
+                if (quote != "") {
+                    if (c == quote) quote = ""; else arg = arg c
+                } else if (c == "\"" || c == "\047") {
+                    quote = c; started = 1
+                } else if (c == " " || c == "\t") {
+                    if (started) print arg
+                    arg = ""; started = 0
+                } else if (c == "#" && !started) {
+                    break
+                } else {
+                    arg = arg c; started = 1
+                }
             }
+            if (started) print arg
         }
     ' "$1" 2>/dev/null
 }

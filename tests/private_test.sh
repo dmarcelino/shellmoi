@@ -151,6 +151,15 @@ Include config.d/*.conf' || fail "no hint for an Include inside a Host block of 
 ssh_hint glob-tilde 'Include ~/.ssh/conf/*.config
 Host mine' conf/a.config 'Include config.d/*.conf' &&
     fail "a hint for a ~/.ssh/config that includes the profiles through a ~ path and a glob"
+ssh_hint 'space in home' 'Include local.config
+Host mine' local.config 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles, in a home with a space"
+ssh_hint quoted 'Include "my dir/x.conf"
+Host mine' 'my dir/x.conf' 'Include config.d/*.conf' &&
+    fail "a hint for a ~/.ssh/config that includes the profiles through a quoted path"
+ssh_hint other-dir 'Include myconfig.d/*.conf
+Host mine' myconfig.d/a.conf 'Host other' ||
+    fail "no hint for a ~/.ssh/config that includes a folder other than config.d"
 
 ## A PROFILE RENAMED, A FILE REMOVED ##
 
