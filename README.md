@@ -34,7 +34,7 @@ The script needs `git`; if it is missing, the script prints the command to insta
   in `~/.claude/skills` and `~/.codex/skills` stay
 - prints the command to install bash-completion if it is missing (see below), and on
   macOS the commands to make Homebrew's Bash the login shell if it is not; it never runs
-  `sudo`
+  `sudo` (`install.sh system-apply` does, when you run it: see [System files](#system-files))
 - lists files of the clone with local changes: the files in `~` are links into it, so an
   installer that appends to `~/.bashrc` edits this public repository. Move such lines to
   `~/.bashrc.local`
@@ -129,7 +129,8 @@ to the system, such as `/etc/resolver/corp.example`, which sends a domain's DNS 
 its own servers while another VPN, such as Tailscale, handles the rest. The install never
 links them, as a link to a file you can edit would let any program running as you change
 the system's settings, and never runs `sudo`. It compares each file with the system's and
-prints the commands that copy the missing or different ones, owned by root, mode 644:
+prints the commands that copy the missing or different ones. A missing file is installed
+owned by root, mode 644, in a folder made with mode 755 if there is none:
 
 ```text
 System files in the private profiles differ from the system's. To install them:
@@ -137,12 +138,47 @@ System files in the private profiles differ from the system's. To install them:
     sudo install -m 644 ~/.local/share/shellmoi/private/work/.system/etc/resolver/corp.example /etc/resolver/corp.example
 ```
 
+A file already there is copied over with `sudo cp`, so it keeps its owner and mode; so is
+one in a folder only root can open, where the install cannot tell whether it is there. A
+system file that is a link, or a folder where the profile has a file, is left alone and
+reported: copying over a link would turn it into a file, or change the file it points to.
+
+Two commands copy them for you, in either direction. Both take profile names, and work on
+every profile with a `.system/` folder when given none:
+
+```bash
+~/.local/share/shellmoi/install.sh system-apply [--yes] [profile...]  # profiles -> system
+~/.local/share/shellmoi/install.sh system-save [profile...]           # system -> profiles
+```
+
+- **`system-apply`** lists the missing and different files, with their differences, then
+  asks before copying them; `--yes` skips the question, which it needs when its input is
+  not a terminal. It runs `sudo` only for a file you cannot read or write yourself, or in a
+  folder you cannot open: to compare it, which can ask for the password while it lists,
+  and to copy it. Where you can, as for a Windows program's settings under `/mnt/c` in
+  WSL, it copies without `sudo`. It copies as the printed commands do: a file it replaces
+  keeps its owner and mode, a new one is owned by root, mode 644, a folder already there
+  keeps its mode, and a link is left alone. It warns when the system's file is newer than the profile's: you may want
+  `system-save` instead. Close the program that owns a file first, or it may save over it.
+- **`system-save`** copies the system's versions into the profiles, for settings you
+  changed on the system, such as in the program itself. It never runs `sudo`: a file only
+  root can read or see is reported and left out, and so is a profile file that is a link,
+  as copying onto it would change the file it points to. It warns when the profile's copy
+  is the newer one.
+- **Backups:** both keep what they replace in `private/.backups/<time>/`, as `push.sh` and
+  `pull.sh` do: the profiles' old copies under `<profile>/.system/`, and the system's old
+  files under `.system/`. Only you can read them, as they may be copies of files only root
+  could. Nothing is left in the system's folders, where a backup could be read as one more
+  setting, as in `/etc/resolver/`.
+- **Exit status:** both fail when a file could not be saved or applied, and say which.
 - **Two profiles, one file:** the first by name wins, as for the links.
 - **Uninstall** prints `sudo rm` for each file still the same as the profile's.
 - **Removed from a profile:** the copy stays on the system; remove it with `sudo rm`.
 - **Other machines:** `push.sh` copies `.system/` with the rest of the profile, and the
   install there prints the commands for that machine: `push.sh --install`, or
   `install.sh` run there.
+
+`tests/system_test.sh` checks `system-save` and `system-apply`.
 
 Make `private/` a git repository of its own, never pushed anywhere: it keeps the history,
 and `git clean` in the clone leaves a nested repository alone.

@@ -5,6 +5,8 @@
 #
 # Safe to run again: it pulls the latest changes and only touches what changed.
 # `install.sh uninstall` removes the links and puts back what the first install moved away.
+# `install.sh system-save` copies the system's versions of the profiles' .system/ files into
+# them; `install.sh system-apply` copies them onto the system, with sudo only where needed.
 # Must run under Bash 3.2 (the macOS default), so no mapfile or associative arrays.
 
 set -euo pipefail
@@ -306,15 +308,32 @@ check_system_files() {
             echo "  skipped        /$file of profile $profile (an earlier profile has it)"
             continue
         fi
+        # As system-apply copies: over a file already there, so it keeps its owner and mode,
+        # and never over a link, which install would turn into a file
+        if [ -L "$target" ]; then
+            echo "  a link         /$file; left alone"
+            continue
+        fi
+        if [ -e "$target" ] && [ ! -f "$target" ]; then
+            echo "  not a file     /$file; left alone"
+            continue
+        fi
         if cmp -s "$src" "$target"; then
             echo "  up to date     /$file"
             continue
         fi
-        if [ -e "$target" ] || [ -L "$target" ]; then
+        if [ -e "$target" ]; then
             echo "  differs        /$file (profile $profile)"
-        else
-            echo "  missing        /$file (profile $profile)"
+            commands="$commands$(print_command sudo cp "$src" "$target")"$'\n'
+            continue
         fi
+        if hidden_from_user "$target"; then
+            # It may be there: cp keeps its owner and mode if so
+            echo "  hidden         /$file (in a folder only root can open; profile $profile)"
+            commands="$commands$(print_command sudo cp "$src" "$target")"$'\n'
+            continue
+        fi
+        echo "  missing        /$file (profile $profile)"
         dir=$(dirname "$target")
         if [ ! -d "$dir" ] && [[ $dirs != *$'\n'"$dir"$'\n'* ]]; then
             dirs="$dirs$dir"$'\n'
@@ -330,6 +349,10 @@ print_system_commands() {
         echo
         echo "System files in the private profiles differ from the system's. To install them:"
         printf '%s' "$SYSTEM_COMMANDS"
+        echo "Or let shellmoi copy them, with sudo only where needed:"
+        print_command "$SHELLMOI_DIR/install.sh" system-apply
+        echo "To keep the system's versions in the profiles instead:"
+        print_command "$SHELLMOI_DIR/install.sh" system-save
     fi
 }
 
@@ -351,6 +374,344 @@ uncheck_system_files() {
         echo
         echo "System files the private profiles installed. To remove them:"
         printf '%s' "$commands"
+    fi
+}
+
+# The profiles system-save and system-apply work on, each line a name; empty for all. And
+# whether system-apply goes ahead without asking.
+SELECTED=""
+ASSUME_YES=false
+# The time of this run, which names its folder in $PRIVATE_DIR/.backups/, as for push.sh
+STAMP=${BACKUP_SUFFIX#.bak.}
+
+# Whether system-save and system-apply work on the profile
+selected_profile() {
+    [ -z "$SELECTED" ] || [[ $'\n'$SELECTED == *$'\n'"$1"$'\n'* ]]
+}
+
+# Reads [--yes] [profile...] of system-save and system-apply into SELECTED and ASSUME_YES.
+# Takes the command's name first: only system-apply takes --yes.
+parse_system_args() {
+    local command=$1 arg
+    shift
+    if [ ! -d "$PRIVATE_DIR" ]; then
+        echo "No private profiles: $PRIVATE_DIR is missing." >&2
+        exit 1
+    fi
+    for arg in "$@"; do
+        case "$arg" in
+            --yes)
+                if [ "$command" != system-apply ]; then
+                    echo "Unknown option for $command: $arg" >&2
+                    exit 2
+                fi
+                ASSUME_YES=true
+                ;;
+            -*)
+                echo "Unknown option for $command: $arg" >&2
+                exit 2
+                ;;
+            .*|*/*|*$'\n'*|'')
+                echo "Not a profile name: '$arg'" >&2
+                exit 2
+                ;;
+            *)
+                if [ ! -d "$PRIVATE_DIR/$arg/$SYSTEM_DIR" ]; then
+                    echo "Profile $arg has no $SYSTEM_DIR folder in $PRIVATE_DIR." >&2
+                    exit 1
+                fi
+                SELECTED="$SELECTED$arg"$'\n'
+                ;;
+        esac
+    done
+}
+
+# Prints the path, in this run's backups, of the path given relative to them, and makes
+# its folder, which only you can open. The backups stay out of the system's folders: a
+# file in /etc/resolver/, for one, would be read as one more resolver.
+backup_path() {
+    local path="$PRIVATE_DIR/.backups/$STAMP/$1"
+    (umask 077 && mkdir -p "$(dirname "$path")") || return 1
+    # A run in the same second has a backup there already
+    while [ -e "$path" ] || [ -L "$path" ]; do
+        path="$path.1"
+    done
+    echo "$path"
+}
+
+# Writes what the command prints, such as `cat <file>`, to this run's backups, at the path
+# given relative to them. Only you can read it: it may be a copy of a file only root could.
+write_backup() {
+    local path
+    path=$(backup_path "$1") || return 1
+    shift
+    (umask 077 && "$@" > "$path")
+}
+
+# Whether only root can tell if the file is there: it is not, as far as you can see, and
+# the nearest folder above it that you can see cannot be searched
+hidden_from_user() {
+    local path=$1
+    if [ -e "$path" ] || [ -L "$path" ]; then
+        return 1
+    fi
+    path=$(dirname "$path")
+    while [ ! -e "$path" ]; do
+        path=$(dirname "$path")
+    done
+    [ -d "$path" ] && [ ! -x "$path" ]
+}
+
+# Whether copying the file onto the system needs root: the file is there and you cannot
+# read it, for its backup, or write it; or the nearest folder above it that is there is
+# not one you can search and write
+needs_sudo() {
+    local path=$1
+    if [ -e "$path" ] || [ -L "$path" ]; then
+        [ ! -r "$path" ] || [ ! -w "$path" ]
+        return
+    fi
+    path=$(dirname "$path")
+    while [ ! -e "$path" ]; do
+        path=$(dirname "$path")
+    done
+    [ ! -d "$path" ] || [ ! -w "$path" ] || [ ! -x "$path" ]
+}
+
+# Runs the command, with sudo when READ_SUDO is true: system-apply looks at files only root
+# can read that way
+as_reader() {
+    if $READ_SUDO; then
+        sudo "$@"
+    else
+        "$@"
+    fi
+}
+READ_SUDO=false
+
+# Copies the system's version of each file of the profiles' .system/ folders into the
+# profile. Never writes outside $PRIVATE_DIR, and never runs sudo.
+run_system_save() {
+    local record entry profile file src target saved="" failed=false found=false
+    parse_system_args system-save "$@"
+    echo "Saving the system's files into the private profiles in $PRIVATE_DIR"
+    while IFS= read -r -d '' record; do
+        entry=${record#*:}
+        profile=${entry%%/*}
+        file=${entry#*/}
+        selected_profile "$profile" || continue
+        found=true
+        src="$PRIVATE_DIR/$profile/$SYSTEM_DIR/$file"
+        target="$SYSTEM_ROOT/$file"
+        if [ "${record%%:*}" = taken ]; then
+            echo "  skipped        /$file of profile $profile (an earlier profile has it)"
+        elif [ -L "$src" ]; then
+            # Copying onto it would write to the file it points to, outside the profiles
+            echo "  a link         /$file in profile $profile; left alone"
+            failed=true
+        elif hidden_from_user "$target"; then
+            echo "  unreadable     /$file (only root can see it)"
+            failed=true
+        elif [ ! -e "$target" ] && [ ! -L "$target" ]; then
+            echo "  missing        /$file (kept profile $profile's copy)"
+        elif [ ! -f "$target" ]; then
+            echo "  not a file     /$file"
+            failed=true
+        elif [ ! -r "$target" ]; then
+            echo "  unreadable     /$file (only root can read it)"
+            failed=true
+        elif cmp -s "$src" "$target"; then
+            echo "  up to date     /$file"
+        else
+            if [ "$src" -nt "$target" ]; then
+                echo "  warning        /$file: profile $profile's copy is newer; did you mean system-apply?"
+            fi
+            if write_backup "$profile/$SYSTEM_DIR/$file" cat "$src" && cp "$target" "$src"; then
+                echo "  saved          /$file into profile $profile"
+                saved="$saved    $profile/$SYSTEM_DIR/$file"$'\n'
+            else
+                echo "  failed         /$file (profile $profile)"
+                failed=true
+            fi
+        fi
+    done < <(system_files)
+    echo
+    if ! $found; then
+        echo "No system files in the profiles: they go in <profile>/$SYSTEM_DIR/."
+    elif [ -n "$saved" ]; then
+        echo "Saved, the versions they replaced kept in $PRIVATE_DIR/.backups/$STAMP/:"
+        printf '%s' "$saved"
+        if [ -d "$PRIVATE_DIR/.git" ]; then
+            echo "To review the changes:"
+            print_command git -C "$PRIVATE_DIR" diff
+        fi
+    elif ! $failed; then
+        echo "Already up to date."
+    fi
+    if $failed; then
+        echo "Some files could not be saved; see above." >&2
+        exit 1
+    fi
+}
+
+# Copies one file of a profile onto the system, after keeping the system's version in the
+# backups. Takes sudo or user, whether the system has the file, the profile's file, the
+# system's, and the path relative to /.
+apply_system_file() {
+    local how=$1 exists=$2 src=$3 target=$4 file=$5 dir
+    dir=$(dirname "$target")
+    if $exists; then
+        if [ -r "$target" ]; then
+            write_backup "$SYSTEM_DIR/$file" cat "$target" || return 1
+        else
+            write_backup "$SYSTEM_DIR/$file" sudo cat "$target" || return 1
+        fi
+    fi
+    if [ "$how" = user ]; then
+        # Over a file already there, cp keeps its owner and mode
+        mkdir -p "$dir" && cp "$src" "$target"
+    elif $exists; then
+        sudo cp "$src" "$target"
+    else
+        # install -d would change the mode of a folder already there, such as one only
+        # root can open
+        if ! sudo test -d "$dir"; then
+            sudo install -d -m 755 "$dir" || return 1
+        fi
+        sudo install -m 644 "$src" "$target"
+    fi
+}
+
+# Copies the files of the profiles' .system/ folders that are missing or different onto the
+# system. Lists them and their differences first, and asks, unless --yes. Runs sudo only for
+# the files that need it: to look at those only root can read, and to write those only root
+# can write.
+run_system_apply() {
+    local record entry profile file src target how via exists answer rest i count=0
+    local applied="" failed=false found=false
+    # Each "<how>:<exists>:<profile>/<path>", and how many; an array, as a path may hold a
+    # line break. Bash 3.2 counts an empty array as unset under set -u, hence the count.
+    local pending=()
+    parse_system_args system-apply "$@"
+    echo "Comparing the private profiles' system files in $PRIVATE_DIR with the system's"
+    while IFS= read -r -d '' record; do
+        entry=${record#*:}
+        profile=${entry%%/*}
+        file=${entry#*/}
+        selected_profile "$profile" || continue
+        found=true
+        src="$PRIVATE_DIR/$profile/$SYSTEM_DIR/$file"
+        target="$SYSTEM_ROOT/$file"
+        if [ "${record%%:*}" = taken ]; then
+            echo "  skipped        /$file of profile $profile (an earlier profile has it)"
+            continue
+        fi
+        READ_SUDO=false
+        if hidden_from_user "$target" ||
+            { [ -e "$target" ] && [ ! -r "$target" ]; }; then
+            READ_SUDO=true
+            if ! command -v sudo >/dev/null 2>&1; then
+                echo "  unreadable     /$file (only root can read it, and sudo is not installed)"
+                failed=true
+                continue
+            fi
+        fi
+        if as_reader test -L "$target"; then
+            # Replacing it would turn it into a file; writing through it, change another
+            echo "  a link         /$file; left alone"
+            failed=true
+            continue
+        fi
+        exists=false
+        if as_reader test -e "$target"; then
+            exists=true
+            if ! as_reader test -f "$target"; then
+                echo "  not a file     /$file; left alone"
+                failed=true
+                continue
+            fi
+            if as_reader cmp -s "$src" "$target"; then
+                echo "  up to date     /$file"
+                continue
+            fi
+        fi
+        how=user
+        via=""
+        if $READ_SUDO || needs_sudo "$target"; then
+            how=sudo
+            via=", with sudo"
+        fi
+        if $exists; then
+            echo "  differs        /$file (profile $profile$via)"
+            if as_reader test "$target" -nt "$src"; then
+                echo "  warning        /$file: the system's file is newer; did you mean system-save?"
+            fi
+            as_reader diff -u -L "/$file (system)" -L "/$file (profile $profile)" \
+                "$target" "$src" | sed 's/^/      /' || true
+        else
+            echo "  missing        /$file (profile $profile$via)"
+        fi
+        pending[count]="$how:$exists:$entry"
+        count=$((count + 1))
+    done < <(system_files)
+    READ_SUDO=false
+
+    echo
+    if ! $found; then
+        echo "No system files in the profiles: they go in <profile>/$SYSTEM_DIR/."
+        return
+    fi
+    if [ "$count" -eq 0 ]; then
+        if ! $failed; then
+            echo "Already up to date."
+        fi
+    else
+        echo "Close the programs that own these files first, or they may save over them."
+        answer=yes
+        if ! $ASSUME_YES; then
+            if [ ! -t 0 ]; then
+                echo "Not asking, as the input is not a terminal: pass --yes to apply" \
+                    "$count file(s)." >&2
+                exit 1
+            fi
+            printf 'Apply %s file(s)? [y/N] ' "$count"
+            read -r answer || answer=
+        fi
+        case "$answer" in
+            y|Y|yes|Yes|YES)
+                for ((i = 0; i < count; i++)); do
+                    how=${pending[i]%%:*}
+                    rest=${pending[i]#*:}
+                    exists=${rest%%:*}
+                    entry=${rest#*:}
+                    profile=${entry%%/*}
+                    file=${entry#*/}
+                    via=""
+                    if [ "$how" = sudo ]; then
+                        via=", with sudo"
+                    fi
+                    if apply_system_file "$how" "$exists" \
+                        "$PRIVATE_DIR/$profile/$SYSTEM_DIR/$file" "$SYSTEM_ROOT/$file" "$file"
+                    then
+                        echo "  applied        /$file from profile $profile$via"
+                        applied="$applied    /$file"$'\n'
+                    else
+                        echo "  failed         /$file (profile $profile)"
+                        failed=true
+                    fi
+                done
+                echo
+                ;;
+            *) echo "Nothing applied." ;;
+        esac
+    fi
+    if [ -n "$applied" ]; then
+        echo "Applied; the versions they replaced, if any, are kept in $PRIVATE_DIR/.backups/$STAMP/$SYSTEM_DIR/:"
+        printf '%s' "$applied"
+    fi
+    if $failed; then
+        echo "Some files could not be applied; see above." >&2
+        exit 1
     fi
 }
 
@@ -767,8 +1128,17 @@ main() {
     case "${1:-install}" in
         install) run_install ;;
         uninstall) run_uninstall ;;
+        system-save)
+            shift
+            run_system_save "$@"
+            ;;
+        system-apply)
+            shift
+            run_system_apply "$@"
+            ;;
         *)
-            echo "Usage: install.sh [install|uninstall]" >&2
+            echo "Usage: install.sh [install | uninstall | system-save [profile...] |" >&2
+            echo "                   system-apply [--yes] [profile...]]" >&2
             exit 2
             ;;
     esac
