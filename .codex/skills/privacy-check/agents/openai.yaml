@@ -1,0 +1,7 @@
+interface:
+  display_name: "Privacy check"
+  short_description: "Stops private or secret data before a commit, push or merge"
+  default_prompt: "Use $privacy-check to check that nothing private or secret is about to be published."
+
+policy:
+  allow_implicit_invocation: false

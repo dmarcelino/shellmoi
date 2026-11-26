@@ -16,7 +16,8 @@ Never commit private, sensitive or secret information. Off limits, among others:
 - Names of employers, clients or internal systems
 
 Author and license credits in vendored third-party code are fine; keep them. So is this
-repository's own public URL, which `install.sh` and the README need.
+repository's own public URL, which `install.sh` and the README need. The commit author's
+name is fine too, but the author email must be a private no-reply address.
 
 Keep machine-specific or private values out of tracked files: read them from environment
 variables or from a local, untracked file that the tracked config sources if present.
