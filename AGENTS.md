@@ -11,6 +11,7 @@ This repository will become public. Treat every commit as published.
 Never commit private, sensitive or secret information. Off limits, among others:
 
 - Personal names, email addresses, usernames and home directory paths that identify a person
+- Postal addresses and phone numbers
 - Secrets, tokens, API keys, passwords, private keys and certificates
 - Hostnames, IP addresses, internal URLs and other details of private networks or machines
 - Names of employers, clients or internal systems

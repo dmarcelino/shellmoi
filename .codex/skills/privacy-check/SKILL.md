@@ -41,14 +41,15 @@ unchecked (see Report).
 ## Off limits
 
 - Personal names, email addresses, usernames and home paths that identify a person
+- Postal addresses and phone numbers
 - Secrets: tokens, API keys, passwords, private keys, certificates, `.env` contents
 - Hostnames, IP addresses, internal URLs, other details of private networks or machines
 - Names of employers, clients or internal systems
 - Real personal or customer data, for example in logs, fixtures or screenshots
 
 Allowed: author and license credits in vendored third-party code, the repository's own
-public URL, and placeholders such as `example.com`, `user@example.com`, `192.0.2.1` or
-`/home/user`.
+public URL, and placeholders such as `example.com`, `user@example.com`, `192.0.2.1`,
+`/home/user` or `+1 555 0100`.
 
 ## Commit author
 
