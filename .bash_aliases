@@ -92,6 +92,7 @@ alias cld='claude -c || claude'
 alias cdx='codex resume --last'
 alias cldp='MAX_THINKING_TOKENS=0 claude -p --settings '\''{}'\'' --no-session-persistence --model=haiku --effort low'
 alias cdxp='codex e --ephemeral -c model_reasoning_effort=low 2>/dev/null'
+alias pincognito='pi --no-session'
 
 alias commit='MAX_THINKING_TOKENS=0 claude -p --setting-sources user --strict-mcp-config --settings '\''{"disableAllHooks": true}'\'' --no-session-persistence --model=haiku --effort low "/commit"'
 alias commitx='codex e --ephemeral -c model_reasoning_effort=low /commit 2>/dev/null'
