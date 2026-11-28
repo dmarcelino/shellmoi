@@ -109,11 +109,13 @@ calls=$work/calls
 : > "$calls"
 record() { echo "$*" >> "$calls"; }
 
-# Records each call; brew --prefix answers like Homebrew on Apple silicon
+# Records each call; brew --prefix answers with an empty folder, so that what the real
+# Homebrew of the machine running the test has installed counts for nothing
+prefix=$work/homebrew
 brew() {
     record brew "$@"
     if [ "$1" = --prefix ]; then
-        echo /opt/homebrew
+        echo "$prefix"
     fi
 }
 apt_install() { record apt_install "$@"; }
@@ -188,7 +190,7 @@ grep -qx "brew install --quiet rsync" "$calls" || fail "--ensure did not install
 
 ## DOCKER PLUGIN DIRECTORIES ##
 
-plugins=/opt/homebrew/lib/docker/cli-plugins
+plugins=$prefix/lib/docker/cli-plugins
 config=$HOME/.docker/config.json
 
 [ "$(jq -c .cliPluginsExtraDirs "$config")" = "[\"$plugins\"]" ] ||
