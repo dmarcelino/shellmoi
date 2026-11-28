@@ -481,7 +481,7 @@ copy in `.codex/skills`; `.claude/skills` is a link to it. All are invoked expli
 | `gaps`          | Finds gaps, contradictions and ambiguity in a request; asks first   |
 | `design-review` | Design review of a PR, branch or local work; edits nothing          |
 | `review-prs`    | Serious findings in PRs as ready-to-paste review remarks            |
-| `privacy-check` | Stops private or secret data before a commit, push or merge         |
+| `leaks`         | Stops private or secret data before a commit, push or merge         |
 
 The install script links `~/.claude/skills/<name>` and `~/.codex/skills/<name>` to each
 skill. A skill already at that place is moved to `~/.claude/skills.bak.<timestamp>/` or

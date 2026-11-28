@@ -1,11 +1,11 @@
 ---
-name: privacy-check
-description: Use when the user invokes `/privacy-check` (`$privacy-check` in Codex), alone to check local changes, or together with a commit, push, merge or pull request instruction. Checks that nothing private, personal, sensitive or secret is about to be published in a public repository, and stops the commit, push or merge if something is found.
+name: leaks
+description: Use when the user invokes `/leaks` (`$leaks` in Codex), alone to check local changes, or together with a commit, push, merge or pull request instruction. Checks that nothing private, personal, sensitive or secret is about to be published in a public repository, and stops the commit, push or merge if something is found.
 argument-hint: "[commit|push|merge|pr instructions]"
 disable-model-invocation: true
 ---
 
-# Privacy check
+# Leaks
 
 Treat everything that leaves this machine as published for good: a public repository
 is cloned, cached and indexed within minutes, so a later fix does not unpublish it.
